@@ -1,0 +1,7 @@
+@import './base.css';
+
+#app {
+  width: 100%;
+  min-height: 100vh;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+}

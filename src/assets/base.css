@@ -1,0 +1,40 @@
+:root {
+  --ink: #122018;
+  --ink-soft: #24362b;
+  --muted: #5a6d61;
+  --line: #c5d2c8;
+  --panel: rgba(244, 249, 245, 0.78);
+  --panel-strong: rgba(236, 246, 239, 0.96);
+  --chip: #f7fbf8;
+  --chip-hover: #e8f4ec;
+  --accent: #2f9e6e;
+  --color-background: #e8f0ea;
+  --color-text: var(--ink);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--color-text);
+  background:
+    radial-gradient(circle at 8% 12%, rgba(47, 158, 110, 0.16), transparent 36%),
+    radial-gradient(circle at 92% 8%, rgba(40, 90, 120, 0.12), transparent 30%),
+    linear-gradient(155deg, #eef5f0 0%, #e3ede6 52%, #d9e6dd 100%);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input {
+  font: inherit;
+}
