@@ -36,6 +36,8 @@
   --chip: #333333;
   --chip-hover: #444444;
   --accent: var(--color-primary);
+  --ring: var(--color-primary);
+  --page: var(--color-background);
 }
 
 *,
@@ -45,8 +47,15 @@
   margin: 0;
 }
 
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+}
+
 body {
   min-height: 100vh;
+  margin: 0;
   color: var(--color-text);
   background: var(--color-background);
   font-family: 'Poppins', sans-serif;
@@ -60,4 +69,15 @@ body {
 button,
 input {
   font: inherit;
+}
+
+html.reaction-flash body {
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--reaction-flash) 28%, transparent);
+}
+
+html.reaction-flash .tier__track,
+html.reaction-flash .rank-card,
+html.reaction-flash .avatar {
+  border-color: color-mix(in srgb, var(--reaction-flash) 32%, var(--line)) !important;
+  transition: border-color 0.35s ease;
 }

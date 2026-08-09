@@ -48,11 +48,14 @@ export interface BoardItem {
   personId: string
   username: string
   rank: RankName | null
+  /** Ordem na fila (pool) ou dentro da tier. */
+  order: number
   rankingId: number | null
 }
 
 export interface FixedTierRow {
   name: RankName
+  label: string
   icon: string
   color: string
   position: number

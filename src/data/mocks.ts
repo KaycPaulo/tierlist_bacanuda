@@ -19,59 +19,78 @@ function characterImage(slug: string) {
   return `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(slug)}`
 }
 
-export const MOCK_PEOPLES: MockPerson[] = [
-  {
-    id: '11111111-1111-4111-8111-111111111111',
-    username: 'kayc',
-    avatar_url: null,
-  },
-  {
-    id: '22222222-2222-4222-8222-222222222222',
-    username: 'luna',
-    avatar_url: null,
-  },
-  {
-    id: '33333333-3333-4333-8333-333333333333',
-    username: 'rafa',
-    avatar_url: null,
-  },
-  {
-    id: '44444444-4444-4444-8444-444444444444',
-    username: 'mia',
-    avatar_url: null,
-  },
-  {
-    id: '55555555-5555-4555-8555-555555555555',
-    username: 'theo',
-    avatar_url: null,
-  },
-  {
-    id: '66666666-6666-4666-8666-666666666666',
-    username: 'nina',
-    avatar_url: null,
-  },
-  {
-    id: '77777777-7777-4777-8777-777777777777',
-    username: 'alex',
-    avatar_url: null,
-  },
-  {
-    id: '88888888-8888-4888-8888-888888888888',
-    username: 'sami',
-    avatar_url: null,
-  },
-]
+function mockPersonId(index: number) {
+  const hex = index.toString(16).padStart(12, '0')
+  return `11111111-1111-4111-8111-${hex}`
+}
 
-export const MOCK_CHARACTERS: MockCharacter[] = [
-  { name: 'Ember', slug: 'ember', image_url: characterImage('ember') },
-  { name: 'Aqua', slug: 'aqua', image_url: characterImage('aqua') },
-  { name: 'Volt', slug: 'volt', image_url: characterImage('volt') },
-  { name: 'Shade', slug: 'shade', image_url: characterImage('shade') },
-  { name: 'Bloom', slug: 'bloom', image_url: characterImage('bloom') },
-  { name: 'Frost', slug: 'frost', image_url: characterImage('frost') },
-  { name: 'Rocky', slug: 'rocky', image_url: characterImage('rocky') },
-  { name: 'Nova', slug: 'nova', image_url: characterImage('nova') },
-]
+const PEOPLE_USERNAMES = [
+  'kayc',
+  'luna',
+  'rafa',
+  'mia',
+  'theo',
+  'nina',
+  'alex',
+  'sami',
+  'bruno',
+  'clara',
+  'diego',
+  'eva',
+  'felix',
+  'gabi',
+  'hugo',
+  'iris',
+  'joao',
+  'kira',
+  'leo',
+  'meli',
+  'nico',
+  'olivia',
+  'pedro',
+  'quinn',
+  'rita',
+] as const
+
+const CHARACTER_DEFS = [
+  { name: 'Ember', slug: 'ember' },
+  { name: 'Aqua', slug: 'aqua' },
+  { name: 'Volt', slug: 'volt' },
+  { name: 'Shade', slug: 'shade' },
+  { name: 'Bloom', slug: 'bloom' },
+  { name: 'Frost', slug: 'frost' },
+  { name: 'Rocky', slug: 'rocky' },
+  { name: 'Nova', slug: 'nova' },
+  { name: 'Blaze', slug: 'blaze' },
+  { name: 'Echo', slug: 'echo' },
+  { name: 'Jade', slug: 'jade' },
+  { name: 'Orbit', slug: 'orbit' },
+  { name: 'Pixel', slug: 'pixel' },
+  { name: 'Quark', slug: 'quark' },
+  { name: 'Rune', slug: 'rune' },
+  { name: 'Storm', slug: 'storm' },
+  { name: 'Tide', slug: 'tide' },
+  { name: 'Umber', slug: 'umber' },
+  { name: 'Vex', slug: 'vex' },
+  { name: 'Wisp', slug: 'wisp' },
+  { name: 'Xeno', slug: 'xeno' },
+  { name: 'Yara', slug: 'yara' },
+  { name: 'Zephyr', slug: 'zephyr' },
+  { name: 'Astra', slug: 'astra' },
+  { name: 'Bolt', slug: 'bolt' },
+] as const
+
+export const MOCK_PEOPLES: MockPerson[] = PEOPLE_USERNAMES.map((username, index) => ({
+  id: mockPersonId(index + 1),
+  username,
+  avatar_url: null,
+}))
+
+export const MOCK_CHARACTERS: MockCharacter[] = CHARACTER_DEFS.map((character) => ({
+  name: character.name,
+  slug: character.slug,
+  image_url: characterImage(character.slug),
+}))
 
 export const MOCK_LINKS: MockLink[] = MOCK_PEOPLES.map((person, index) => ({
   personId: person.id,

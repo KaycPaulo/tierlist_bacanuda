@@ -2,87 +2,102 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { FIXED_RANKS, type DropTarget, type RankName } from '@/constants/ranks'
 import { MOCK_CHARACTERS, MOCK_LINKS, MOCK_PEOPLES, MOCK_TIERLIST_NAME } from '@/data/mocks'
-import { seedMockData } from '@/lib/seed'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
-import type {
-  BoardItem,
-  FixedTierRow,
-  PeopleCharacterLinkRow,
-  Person,
-  Ranking,
-  Tier,
-  Tierlist,
-} from '@/types/tierlist'
+import type { BoardItem, Character, FixedTierRow, Person, Tierlist } from '@/types/tierlist'
 
 export type { DropTarget }
 
-function getErrorMessage(err: unknown, fallback = 'Falha ao carregar a tierlist.') {
-  if (err instanceof Error && err.message) return err.message
-  if (typeof err === 'object' && err && 'message' in err) {
-    const message = (err as { message?: unknown }).message
-    if (typeof message === 'string' && message.trim()) return message
+const EXCLUDED_PEOPLE_KEY = 'tierlist:excluded-people'
+
+function loadExcludedPersonIds(): string[] {
+  try {
+    const raw = localStorage.getItem(EXCLUDED_PEOPLE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed)
+      ? parsed.filter((entry): entry is string => typeof entry === 'string')
+      : []
+  } catch {
+    return []
   }
-  if (typeof err === 'string' && err.trim()) return err
-  return fallback
 }
 
-function unwrapRelation<T>(value: T | T[] | null | undefined): T | null {
-  if (!value) return null
-  return Array.isArray(value) ? (value[0] ?? null) : value
+function saveExcludedPersonIds(ids: string[]) {
+  localStorage.setItem(EXCLUDED_PEOPLE_KEY, JSON.stringify(ids))
+}
+
+function isRankName(value: string): value is RankName {
+  return FIXED_RANKS.some((rank) => rank.name === value)
+}
+
+function buildFixedTiers(): FixedTierRow[] {
+  return FIXED_RANKS.map((rank, index) => ({
+    id: index + 1,
+    name: rank.name,
+    label: rank.label,
+    icon: rank.icon,
+    color: rank.color,
+    position: rank.position,
+  }))
 }
 
 export const useTierlistStore = defineStore('tierlist', () => {
   const tierlist = ref<Tierlist | null>(null)
   const tiers = ref<FixedTierRow[]>([])
   const items = ref<BoardItem[]>([])
+  const peoples = ref<Person[]>([])
+  const characters = ref<Character[]>([])
   const person = ref<Person | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
   const usingLocalMock = ref(false)
+  const excludedPersonIds = ref<string[]>(loadExcludedPersonIds())
 
-  const poolItems = computed(() => items.value.filter((item) => item.rank === null))
+  function isPersonExcluded(personId: string) {
+    return excludedPersonIds.value.includes(personId)
+  }
+
+  function togglePersonExcluded(personId: string) {
+    const next = new Set(excludedPersonIds.value)
+    if (next.has(personId)) next.delete(personId)
+    else next.add(personId)
+    excludedPersonIds.value = [...next]
+    saveExcludedPersonIds(excludedPersonIds.value)
+    void fetchBoard()
+  }
+
+  const poolItems = computed(() =>
+    items.value
+      .filter((item) => item.rank === null)
+      .sort((a, b) => a.order - b.order),
+  )
+  const currentItem = computed(() => poolItems.value[0] ?? null)
 
   function itemsInRank(rank: RankName) {
     return items.value
       .filter((item) => item.rank === rank)
-      .sort((a, b) => a.characterName.localeCompare(b.characterName))
+      .sort((a, b) => a.order - b.order)
   }
 
-  function resolveFixedTiers(dbTiers: Tier[]): FixedTierRow[] {
-    return FIXED_RANKS.map((rank) => {
-      const dbTier = dbTiers.find((tier) => tier.name.toUpperCase() === rank.name)
-      if (!dbTier) {
-        throw new Error(
-          `Rank fixo "${rank.name}" não encontrado em tiers. Cadastre tiers S, A, B, C e D nesta tierlist.`,
-        )
-      }
-
-      return {
-        id: dbTier.id,
-        name: rank.name,
-        icon: rank.icon,
-        color: rank.color,
-        position: rank.position,
-      }
-    })
-  }
-
-  function loadLocalMockBoard() {
+  function loadLocalMockBoard(reason?: string) {
     usingLocalMock.value = true
+    error.value = reason ?? null
     person.value = MOCK_PEOPLES[0] ?? null
+    peoples.value = MOCK_PEOPLES
+    characters.value = MOCK_CHARACTERS.map((entry, index) => ({
+      id: index + 1,
+      name: entry.name,
+      slug: entry.slug,
+      image_url: entry.image_url,
+      is_active: true,
+    }))
     tierlist.value = {
       id: 0,
       name: MOCK_TIERLIST_NAME,
       is_active: true,
       created_by: MOCK_PEOPLES[0]?.id ?? null,
     }
-    tiers.value = FIXED_RANKS.map((rank, index) => ({
-      id: index + 1,
-      name: rank.name,
-      icon: rank.icon,
-      color: rank.color,
-      position: rank.position,
-    }))
+    tiers.value = buildFixedTiers()
     items.value = MOCK_LINKS.map((link, index) => {
       const people = MOCK_PEOPLES.find((entry) => entry.id === link.personId)!
       const character = MOCK_CHARACTERS.find((entry) => entry.slug === link.characterSlug)!
@@ -93,289 +108,214 @@ export const useTierlistStore = defineStore('tierlist', () => {
         personId: people.id,
         username: people.username,
         rank: null,
+        order: index,
         rankingId: null,
       }
-    })
-  }
-
-  async function resolvePerson(): Promise<Person | null> {
-    const configuredUserId = import.meta.env.VITE_USER_ID?.trim()
-
-    if (configuredUserId) {
-      const { data, error: personError } = await supabase
-        .from('peoples')
-        .select('id, username, avatar_url')
-        .eq('id', configuredUserId)
-        .maybeSingle()
-
-      if (personError) throw personError
-      return data
-    }
-
-    const { data, error: personError } = await supabase
-      .from('peoples')
-      .select('id, username, avatar_url')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-
-    if (personError) throw personError
-    return data
-  }
-
-  async function resolveTierlist(tierlistId?: number): Promise<Tierlist | null> {
-    if (tierlistId) {
-      const { data, error: tierlistError } = await supabase
-        .from('tierlists')
-        .select('id, name, is_active, created_by')
-        .eq('id', tierlistId)
-        .maybeSingle()
-
-      if (tierlistError) throw tierlistError
-      return data
-    }
-
-    const configuredTierlistId = import.meta.env.VITE_TIERLIST_ID?.trim()
-
-    if (configuredTierlistId) {
-      const { data, error: tierlistError } = await supabase
-        .from('tierlists')
-        .select('id, name, is_active, created_by')
-        .eq('id', Number(configuredTierlistId))
-        .maybeSingle()
-
-      if (tierlistError) throw tierlistError
-      return data
-    }
-
-    const { data, error: tierlistError } = await supabase
-      .from('tierlists')
-      .select('id, name, is_active, created_by')
-      .eq('is_active', true)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-
-    if (tierlistError) throw tierlistError
-    return data
+    }).filter((item) => !isPersonExcluded(item.personId))
   }
 
   async function fetchBoard(tierlistId?: number) {
+    loading.value = true
+    error.value = null
+
     if (!isSupabaseConfigured()) {
-      error.value =
-        'Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env e reinicie o npm run dev.'
+      loadLocalMockBoard('Supabase não configurado — usando mock local.')
+      loading.value = false
       return
     }
 
-    loading.value = true
-    error.value = null
-    usingLocalMock.value = false
-
     try {
-      try {
-        await seedMockData()
-      } catch (seedError) {
-        console.warn('[tierlist] seed falhou, usando mock local', seedError)
-        loadLocalMockBoard()
-        error.value = `Mocks locais ativos (seed no Supabase falhou: ${getErrorMessage(seedError)}). Libere INSERT/SELECT no RLS para persistir.`
-        return
-      }
-
-      const currentPerson = await resolvePerson()
-      if (!currentPerson) {
-        loadLocalMockBoard()
-        error.value =
-          'Mocks locais ativos: nenhum usuário em peoples (vazio ou RLS). Libere SELECT/INSERT para anon.'
-        return
-      }
-
-      const currentTierlist = await resolveTierlist(tierlistId)
-      if (!currentTierlist) {
-        loadLocalMockBoard()
-        error.value =
-          'Mocks locais ativos: nenhuma tierlist ativa (vazia ou RLS). Libere SELECT/INSERT para anon.'
-        return
-      }
-
-      const [tiersResult, linksResult, rankingsResult] = await Promise.all([
-        supabase
-          .from('tiers')
-          .select('id, tierlist_id, name, icon, position')
-          .eq('tierlist_id', currentTierlist.id),
-        supabase
-          .from('tierlist_people_characters')
-          .select(
-            `
+      // Se tierlistId for fornecido, usar apenas vínculos daquela tierlist
+      const linksQuery = supabase
+        .from('tierlist_people_characters')
+        .select(
+          `
             id,
             user_id,
             character_id,
+            tierlist_id,
             peoples ( id, username, avatar_url ),
             character ( id, name, slug, image_url, is_active )
           `,
-          )
-          .eq('tierlist_id', currentTierlist.id),
-        supabase
-          .from('rankings')
-          .select('id, tierlist_id, user_id, character_id, tier_id, position')
-          .eq('tierlist_id', currentTierlist.id)
-          .eq('user_id', currentPerson.id),
-      ])
+        )
+        .order('created_at', { ascending: true })
 
-      if (tiersResult.error) throw tiersResult.error
-      if (linksResult.error) throw linksResult.error
-      if (rankingsResult.error) throw rankingsResult.error
-
-      const fixedTiers = resolveFixedTiers(tiersResult.data ?? [])
-      const tierIdToRank = new Map<number, RankName>(
-        fixedTiers.map((tier) => [tier.id, tier.name]),
-      )
-      const rankingByCharacter = new Map<number, Ranking>(
-        (rankingsResult.data ?? []).map((ranking) => [ranking.character_id, ranking]),
-      )
-
-      const boardItems = ((linksResult.data ?? []) as PeopleCharacterLinkRow[])
-        .map((link) => {
-          const people = unwrapRelation(link.peoples)
-          const character = unwrapRelation(link.character)
-          if (!people || !character || !character.is_active) return null
-
-          const ranking = rankingByCharacter.get(character.id)
-          return {
-            characterId: character.id,
-            characterName: character.name,
-            imageUrl: character.image_url,
-            personId: people.id,
-            username: people.username,
-            rank: ranking ? (tierIdToRank.get(ranking.tier_id) ?? null) : null,
-            rankingId: ranking?.id ?? null,
-          } satisfies BoardItem
-        })
-        .filter((item): item is BoardItem => item !== null)
-
-      if (boardItems.length === 0) {
-        loadLocalMockBoard()
-        error.value =
-          'Mocks locais ativos: sem vínculos em tierlist_people_characters (ou RLS bloqueando).'
-        return
+      if (tierlistId) {
+        linksQuery.eq('tierlist_id', tierlistId)
       }
 
-      person.value = currentPerson
-      tierlist.value = currentTierlist
-      tiers.value = fixedTiers
-      items.value = boardItems
-      error.value = null
+      const [peoplesRes, charactersRes, linksRes] = await Promise.all([
+        supabase.from('peoples').select('id, username, avatar_url').order('created_at', {
+          ascending: true,
+        }),
+        supabase
+          .from('character')
+          .select('id, name, slug, image_url, is_active')
+          .eq('is_active', true)
+          .order('created_at', { ascending: true }),
+        linksQuery,
+      ])
+
+      if (peoplesRes.error) throw new Error(peoplesRes.error.message)
+      if (charactersRes.error) throw new Error(charactersRes.error.message)
+
+      const fetchedPeoples = (peoplesRes.data ?? []) as Person[]
+      const fetchedCharacters = (charactersRes.data ?? []) as Character[]
+
+      peoples.value = fetchedPeoples
+      characters.value = fetchedCharacters
+      person.value = fetchedPeoples[0] ?? null
+      tiers.value = buildFixedTiers()
+
+      // Se tierlistId foi fornecido, buscar dados da tierlist
+      if (tierlistId) {
+        const { data: tierlistData } = await supabase
+          .from('tierlists')
+          .select('id, name, is_active, created_by')
+          .eq('id', tierlistId)
+          .maybeSingle()
+        
+        if (tierlistData) {
+          tierlist.value = tierlistData
+        } else {
+          tierlist.value = {
+            id: tierlistId,
+            name: 'Tierlist',
+            is_active: true,
+            created_by: fetchedPeoples[0]?.id ?? null,
+          }
+        }
+      } else {
+        tierlist.value = {
+          id: 0,
+          name: 'Tierlist',
+          is_active: true,
+          created_by: fetchedPeoples[0]?.id ?? null,
+        }
+      }
+      usingLocalMock.value = false
+
+      const visiblePeoples = fetchedPeoples.filter((entry) => !isPersonExcluded(entry.id))
+
+      // Só usa vínculo explícito pessoa ↔ personagem (nunca empilha por ordem)
+      if (linksRes.error) {
+        throw new Error(
+          `${linksRes.error.message}. Rode supabase/rls-cadastro.sql para liberar os vínculos.`,
+        )
+      }
+
+      const linkedItems: BoardItem[] = []
+      for (const row of linksRes.data ?? []) {
+        const people = Array.isArray(row.peoples) ? row.peoples[0] : row.peoples
+        const character = Array.isArray(row.character) ? row.character[0] : row.character
+        if (!people || !character) continue
+        if (isPersonExcluded(people.id)) continue
+        linkedItems.push({
+          characterId: character.id,
+          characterName: character.name,
+          imageUrl: character.image_url,
+          personId: people.id,
+          username: people.username,
+          rank: null,
+          order: linkedItems.length,
+          rankingId: null,
+        })
+      }
+      items.value = linkedItems
+
+      if (items.value.length === 0) {
+        error.value =
+          fetchedPeoples.length === 0 && fetchedCharacters.length === 0
+            ? 'Nenhuma pessoa ou personagem no Supabase. Cadastre na tela de cadastro.'
+            : visiblePeoples.length === 0
+              ? 'Todas as pessoas estão ocultas. Reative alguém no cadastro.'
+              : (linksRes.data?.length ?? 0) === 0
+                ? 'Nenhum vínculo pessoa ↔ personagem. No cadastro, escolha o personagem de cada pessoa.'
+                : 'Nenhum personagem visível na tierlist.'
+      }
     } catch (err) {
-      console.error('[tierlist] falha ao carregar', err)
-      loadLocalMockBoard()
-      error.value = `Mocks locais ativos. Erro Supabase: ${getErrorMessage(err)}`
+      const message = err instanceof Error ? err.message : 'Falha ao carregar do Supabase.'
+      loadLocalMockBoard(`${message} — usando mock local.`)
     } finally {
       loading.value = false
     }
   }
 
-  async function moveItem(characterId: number, target: DropTarget) {
+  /**
+   * Move para uma tier ou de volta ao pool.
+   * `beforeCharacterId`: inserir antes desse item (reordenar).
+   * No pool sem referência: volta para o início da fila (Hora de Ranquear).
+   */
+  function moveItem(
+    characterId: number,
+    target: DropTarget,
+    beforeCharacterId: number | null = null,
+  ) {
     const item = items.value.find((entry) => entry.characterId === characterId)
     if (!item) return
+    if (beforeCharacterId === characterId) return
 
-    const previousRank = item.rank
-    const previousRankingId = item.rankingId
     const nextRank = target === 'pool' ? null : target
+    if (nextRank !== null && !isRankName(nextRank)) return
 
-    if (previousRank === nextRank) return
+    const siblings = items.value
+      .filter((entry) => entry.rank === nextRank && entry.characterId !== characterId)
+      .sort((a, b) => a.order - b.order)
+
+    let insertAt = siblings.length
+
+    if (beforeCharacterId != null) {
+      const beforeIndex = siblings.findIndex((entry) => entry.characterId === beforeCharacterId)
+      if (beforeIndex >= 0) insertAt = beforeIndex
+    } else if (nextRank === null) {
+      insertAt = 0
+    }
+
+    if (item.rank === nextRank) {
+      const currentList =
+        nextRank === null
+          ? items.value
+              .filter((entry) => entry.rank === null)
+              .sort((a, b) => a.order - b.order)
+          : itemsInRank(nextRank)
+      const currentIndex = currentList.findIndex((entry) => entry.characterId === characterId)
+      if (currentIndex === insertAt) return
+    }
 
     item.rank = nextRank
-
-    if (usingLocalMock.value || !tierlist.value || !person.value) {
-      item.rankingId = null
-      return
-    }
-
-    if (nextRank === null) {
-      const { error: deleteError } = await supabase
-        .from('rankings')
-        .delete()
-        .eq('tierlist_id', tierlist.value.id)
-        .eq('user_id', person.value.id)
-        .eq('character_id', characterId)
-
-      if (deleteError) {
-        item.rank = previousRank
-        item.rankingId = previousRankingId
-        error.value = deleteError.message
-        return
-      }
-
-      item.rankingId = null
-      return
-    }
-
-    const tier = tiers.value.find((entry) => entry.name === nextRank)
-    if (!tier) {
-      item.rank = previousRank
-      error.value = `Rank fixo "${nextRank}" sem id no banco.`
-      return
-    }
-
-    const payload = {
-      tierlist_id: tierlist.value.id,
-      user_id: person.value.id,
-      character_id: characterId,
-      tier_id: tier.id,
-      position: 0,
-      updated_at: new Date().toISOString(),
-    }
-
-    const { data, error: upsertError } = await supabase
-      .from('rankings')
-      .upsert(payload, { onConflict: 'tierlist_id,user_id,character_id' })
-      .select('id')
-      .single()
-
-    if (upsertError) {
-      item.rank = previousRank
-      item.rankingId = previousRankingId
-      error.value = upsertError.message
-      return
-    }
-
-    item.rankingId = data.id
+    siblings.splice(insertAt, 0, item)
+    siblings.forEach((entry, index) => {
+      entry.order = index
+    })
   }
 
   async function resetRankings() {
-    items.value = items.value.map((item) => ({
-      ...item,
-      rank: null,
-      rankingId: null,
-    }))
-
-    if (usingLocalMock.value || !tierlist.value || !person.value) return
-
-    loading.value = true
-    error.value = null
-
-    const { error: deleteError } = await supabase
-      .from('rankings')
-      .delete()
-      .eq('tierlist_id', tierlist.value.id)
-      .eq('user_id', person.value.id)
-
-    loading.value = false
-
-    if (deleteError) {
-      error.value = deleteError.message
-    }
+    items.value = [...items.value]
+      .sort((a, b) => a.characterId - b.characterId)
+      .map((item, index) => ({
+        ...item,
+        rank: null,
+        order: index,
+        rankingId: null,
+      }))
   }
 
   return {
     tierlist,
     tiers,
     items,
+    peoples,
+    characters,
     person,
     loading,
     error,
     usingLocalMock,
+    excludedPersonIds,
     poolItems,
+    currentItem,
     itemsInRank,
+    isPersonExcluded,
+    togglePersonExcluded,
     fetchBoard,
     moveItem,
     resetRankings,
