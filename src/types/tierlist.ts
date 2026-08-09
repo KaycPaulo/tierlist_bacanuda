@@ -1,10 +1,9 @@
-import type { RankName } from '@/constants/ranks'
-
-export type { DropTarget, RankName } from '@/constants/ranks'
+export type DropTarget = string | 'pool'
 
 export interface Person {
   id: string
   username: string
+  hostname: string | null
   avatar_url: string | null
 }
 
@@ -17,9 +16,9 @@ export interface Tierlist {
 
 export interface Tier {
   id: number
-  tierlist_id: number
   name: string
   icon: string
+  color: string
   position: number
 }
 
@@ -47,19 +46,18 @@ export interface BoardItem {
   imageUrl: string | null
   personId: string
   username: string
-  rank: RankName | null
+  rank: string | null
   /** Ordem na fila (pool) ou dentro da tier. */
   order: number
   rankingId: number | null
 }
 
-export interface FixedTierRow {
-  name: RankName
-  label: string
+export interface BoardTier {
+  id: number
+  name: string
   icon: string
   color: string
   position: number
-  id: number
 }
 
 export interface PeopleCharacterLinkRow {

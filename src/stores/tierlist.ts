@@ -1,9 +1,9 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { FIXED_RANKS, type DropTarget, type RankName } from '@/constants/ranks'
+import type { DropTarget } from '@/constants/ranks'
 import { MOCK_CHARACTERS, MOCK_LINKS, MOCK_PEOPLES, MOCK_TIERLIST_NAME } from '@/data/mocks'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
-import type { BoardItem, Character, FixedTierRow, Person, Tierlist } from '@/types/tierlist'
+import type { BoardItem, BoardTier, Character, Person, Tier, Tierlist } from '@/types/tierlist'
 
 export type { DropTarget }
 
@@ -26,24 +26,9 @@ function saveExcludedPersonIds(ids: string[]) {
   localStorage.setItem(EXCLUDED_PEOPLE_KEY, JSON.stringify(ids))
 }
 
-function isRankName(value: string): value is RankName {
-  return FIXED_RANKS.some((rank) => rank.name === value)
-}
-
-function buildFixedTiers(): FixedTierRow[] {
-  return FIXED_RANKS.map((rank, index) => ({
-    id: index + 1,
-    name: rank.name,
-    label: rank.label,
-    icon: rank.icon,
-    color: rank.color,
-    position: rank.position,
-  }))
-}
-
 export const useTierlistStore = defineStore('tierlist', () => {
   const tierlist = ref<Tierlist | null>(null)
-  const tiers = ref<FixedTierRow[]>([])
+  const tiers = ref<BoardTier[]>([])
   const items = ref<BoardItem[]>([])
   const peoples = ref<Person[]>([])
   const characters = ref<Character[]>([])
@@ -73,7 +58,7 @@ export const useTierlistStore = defineStore('tierlist', () => {
   )
   const currentItem = computed(() => poolItems.value[0] ?? null)
 
-  function itemsInRank(rank: RankName) {
+  function itemsInRank(rank: string) {
     return items.value
       .filter((item) => item.rank === rank)
       .sort((a, b) => a.order - b.order)
@@ -97,7 +82,9 @@ export const useTierlistStore = defineStore('tierlist', () => {
       is_active: true,
       created_by: MOCK_PEOPLES[0]?.id ?? null,
     }
-    tiers.value = buildFixedTiers()
+    
+    // Tiers sempre vêm do Supabase, não usar mock
+    
     items.value = MOCK_LINKS.map((link, index) => {
       const people = MOCK_PEOPLES.find((entry) => entry.id === link.personId)!
       const character = MOCK_CHARACTERS.find((entry) => entry.slug === link.characterSlug)!
@@ -118,6 +105,30 @@ export const useTierlistStore = defineStore('tierlist', () => {
     loading.value = true
     error.value = null
 
+    console.log('[fetchBoard] Iniciando...')
+    
+    // Sempre buscar tiers do Supabase (são independentes da tierlist)
+    if (isSupabaseConfigured()) {
+      try {
+        console.log('[fetchBoard] Buscando tiers do Supabase...')
+        const tiersRes = await supabase
+          .from('tiers')
+          .select('id, name, icon, color, position')
+          .order('position', { ascending: true })
+
+        if (tiersRes.error) {
+          console.error('[fetchBoard] Erro ao buscar tiers:', tiersRes.error.message)
+        } else {
+          console.log('[fetchBoard] Tiers carregadas:', tiersRes.data)
+          tiers.value = (tiersRes.data ?? []) as BoardTier[]
+        }
+      } catch (err) {
+        console.error('[fetchBoard] Exceção ao buscar tiers:', err)
+      }
+    } else {
+      console.log('[fetchBoard] Supabase não configurado')
+    }
+
     if (!isSupabaseConfigured()) {
       loadLocalMockBoard('Supabase não configurado — usando mock local.')
       loading.value = false
@@ -125,6 +136,7 @@ export const useTierlistStore = defineStore('tierlist', () => {
     }
 
     try {
+
       // Se tierlistId for fornecido, usar apenas vínculos daquela tierlist
       const linksQuery = supabase
         .from('tierlist_people_characters')
@@ -165,7 +177,6 @@ export const useTierlistStore = defineStore('tierlist', () => {
       peoples.value = fetchedPeoples
       characters.value = fetchedCharacters
       person.value = fetchedPeoples[0] ?? null
-      tiers.value = buildFixedTiers()
 
       // Se tierlistId foi fornecido, buscar dados da tierlist
       if (tierlistId) {
@@ -256,7 +267,11 @@ export const useTierlistStore = defineStore('tierlist', () => {
     if (beforeCharacterId === characterId) return
 
     const nextRank = target === 'pool' ? null : target
-    if (nextRank !== null && !isRankName(nextRank)) return
+    
+    // Validar se a tier existe
+    if (nextRank !== null && !tiers.value.some((t) => t.name === nextRank)) {
+      return
+    }
 
     const siblings = items.value
       .filter((entry) => entry.rank === nextRank && entry.characterId !== characterId)

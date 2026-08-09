@@ -13,6 +13,7 @@ export function slugify(value: string) {
 
 export async function createPerson(input: {
   username: string
+  hostname?: string
   avatarUrl?: string
 }): Promise<Person> {
   if (!isSupabaseConfigured()) {
@@ -25,12 +26,90 @@ export async function createPerson(input: {
   const payload = {
     id: crypto.randomUUID(),
     username,
+    hostname: input.hostname?.trim() || null,
     avatar_url: input.avatarUrl?.trim() || null,
   }
 
   const { data, error } = await supabase.from('peoples').insert(payload).select('*').single()
   if (error) throw new Error(error.message)
   return data as Person
+}
+
+export async function getPerson(personId: string): Promise<Person> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env')
+  }
+
+  const { data, error } = await supabase
+    .from('peoples')
+    .select('*')
+    .eq('id', personId)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Amigo não encontrado')
+  return data as Person
+}
+
+export async function updatePerson(
+  personId: string,
+  input: {
+    username?: string
+    hostname?: string
+    avatarUrl?: string
+  },
+): Promise<Person> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env')
+  }
+
+  const payload: Partial<Person> = {}
+
+  if (input.username !== undefined) {
+    const username = input.username.trim()
+    if (!username) throw new Error('Informe o username da pessoa.')
+    payload.username = username
+  }
+
+  if (input.hostname !== undefined) {
+    payload.hostname = input.hostname?.trim() || null
+  }
+
+  if (input.avatarUrl !== undefined) {
+    payload.avatar_url = input.avatarUrl?.trim() || null
+  }
+
+  const { data, error } = await supabase
+    .from('peoples')
+    .update(payload)
+    .eq('id', personId)
+    .select('*')
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Amigo não encontrado para atualizar')
+  return data as Person
+}
+
+export async function deletePerson(personId: string): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env')
+  }
+
+  const { error } = await supabase.from('peoples').delete().eq('id', personId)
+
+  if (error) throw new Error(error.message)
+}
+
+export async function listPeoples(): Promise<Person[]> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env')
+  }
+
+  const { data, error } = await supabase.from('peoples').select('*').order('username', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return (data ?? []) as Person[]
 }
 
 export async function createCharacter(input: {

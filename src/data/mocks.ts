@@ -1,6 +1,7 @@
 export interface MockPerson {
   id: string
   username: string
+  hostname: string | null
   avatar_url: string | null
 }
 
@@ -83,6 +84,7 @@ const CHARACTER_DEFS = [
 export const MOCK_PEOPLES: MockPerson[] = PEOPLE_USERNAMES.map((username, index) => ({
   id: mockPersonId(index + 1),
   username,
+  hostname: null,
   avatar_url: null,
 }))
 
@@ -106,6 +108,7 @@ export const MOCK_TIERLIST_SUMMARIES = [
     host: {
       id: '11111111-1111-4111-8111-111111111111',
       username: 'Jeff The Killer',
+      hostname: null,
       avatar_url: 'https://api.dicebear.com/9.x/adventurer/svg?seed=jeff',
     },
     totalFriends: 15,
@@ -119,6 +122,7 @@ export const MOCK_TIERLIST_SUMMARIES = [
     host: {
       id: '22222222-2222-4222-8222-222222222222',
       username: 'Jeff The Killer',
+      hostname: null,
       avatar_url: 'https://api.dicebear.com/9.x/adventurer/svg?seed=jeff',
     },
     totalFriends: 20,
@@ -132,6 +136,7 @@ export const MOCK_TIERLIST_SUMMARIES = [
     host: {
       id: '33333333-3333-4333-8333-333333333333',
       username: 'Jeff The Killer',
+      hostname: null,
       avatar_url: 'https://api.dicebear.com/9.x/adventurer/svg?seed=jeff',
     },
     totalFriends: 15,

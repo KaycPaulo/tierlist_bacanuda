@@ -6,9 +6,10 @@ export default {
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import type { DropTarget, RankName } from '../constants/ranks'
+import type { DropTarget } from '../constants/ranks'
 import { captureBoardPng } from '../lib/captureBoard'
 import { useTierlistStore } from '../stores/tierlist'
+import AvatarCircle from './AvatarCircle.vue'
 
 interface GhostPos {
   left: number
@@ -59,16 +60,9 @@ function onDragStart(characterId: number, event: DragEvent) {
   const source = event.currentTarget as HTMLElement | null
   if (!source || !event.dataTransfer) return
 
-  const avatarEl =
-    (source.matches('.avatar') ? source : source.querySelector('.avatar')) ?? source
+  const avatarEl = source.querySelector('.avatar-circle') ?? source
   const preview = avatarEl.cloneNode(true) as HTMLElement
-  preview.classList.remove(
-    'avatar--xl',
-    'avatar--sm',
-    'avatar--insert-before',
-    'avatar--dragging',
-  )
-  preview.classList.add('avatar', 'avatar--drag-preview')
+  preview.classList.add('avatar-circle--drag-preview')
   preview.style.position = 'fixed'
   preview.style.top = '-9999px'
   preview.style.left = '-9999px'
@@ -165,7 +159,7 @@ function trackFromEvent(event: DragEvent): HTMLElement | null {
   return current.querySelector('.tier__track')
 }
 
-function onTierDragOver(tierName: RankName, event: DragEvent) {
+function onTierDragOver(tierName: string, event: DragEvent) {
   event.preventDefault()
   event.stopPropagation()
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
@@ -193,7 +187,7 @@ function onTierDragOver(tierName: RankName, event: DragEvent) {
   ghostPos.value = pos
 }
 
-function onTierDrop(tierName: RankName, event: DragEvent) {
+function onTierDrop(tierName: string, event: DragEvent) {
   event.preventDefault()
   event.stopPropagation()
   const raw = event.dataTransfer?.getData('text/plain') || draggingId.value
@@ -228,12 +222,12 @@ function onPoolDrop(event: DragEvent) {
   resetDragState()
 }
 
-function assignCurrent(rank: RankName) {
+function assignCurrent(rank: string) {
   if (!store.currentItem || draggingId.value != null) return
   store.moveItem(store.currentItem.characterId, rank)
 }
 
-function isInsertBefore(tierName: RankName, characterId: number) {
+function isInsertBefore(tierName: string, characterId: number) {
   return (
     overTier.value === tierName &&
     overBeforeId.value === characterId &&
@@ -284,6 +278,11 @@ async function downloadBoardPhoto() {
     <p v-if="store.loading" class="screen__banner">Carregando...</p>
     <p v-else-if="store.error" class="screen__banner">{{ store.error }}</p>
     <p v-if="captureError" class="screen__banner">{{ captureError }}</p>
+    
+    <!-- Debug -->
+    <p v-if="store.tiers.length === 0" class="screen__banner">
+      Debug: Nenhuma tier carregada (total: {{ store.tiers.length }})
+    </p>
 
     <div class="screen__layout">
       <div ref="boardRef" class="board" :class="{ 'board--capture': capturing }">
@@ -291,55 +290,53 @@ async function downloadBoardPhoto() {
           v-for="tier in store.tiers"
           :key="tier.name"
           class="tier"
-          :class="{
-            'tier--over': overTier === tier.name && !capturing,
-            'tier--named': tier.name === 'BESTO',
-          }"
+          :class="{ 'tier--over': overTier === tier.name && !capturing }"
           @dragover="onTierDragOver(tier.name, $event)"
           @drop="onTierDrop(tier.name, $event)"
           @click="assignCurrent(tier.name)"
         >
-          <div
-            class="tier__label"
-            :class="{ 'tier__label--named': tier.name === 'BESTO' }"
-            :style="{ background: tier.color }"
-          >
-            <span class="tier__icon" aria-hidden="true">{{ tier.icon }}</span>
-            <span class="tier__text">{{ tier.label }}</span>
+          <div class="tier__label" :style="{ background: tier.color }">
+            <img :src="`/${tier.icon}`" :alt="tier.name" class="tier__icon" />
+            <span class="tier__text">{{ tier.name }}</span>
           </div>
 
           <div class="tier__track">
             <div
               v-if="overTier === tier.name && draggingItem && ghostPos"
-              class="avatar avatar--ghost"
+              class="avatar-ghost"
               aria-hidden="true"
               :style="{ left: `${ghostPos.left}px`, top: `${ghostPos.top}px` }"
             >
-              <img
-                v-if="draggingItem.imageUrl"
-                :src="draggingItem.imageUrl"
-                :alt="draggingItem.characterName"
+              <AvatarCircle
+                :image-url="draggingItem.imageUrl"
+                :character-name="draggingItem.characterName"
+                :username="draggingItem.username"
+                size="sm"
+                :show-tooltip="false"
               />
-              <span v-else>{{ draggingItem.characterName.slice(0, 1) }}</span>
             </div>
 
             <div
               v-for="item in store.itemsInRank(tier.name)"
               :key="item.characterId"
-              class="avatar"
+              class="tier-avatar"
               :class="{
-                'avatar--dragging': draggingId === item.characterId,
-                'avatar--insert-before': isInsertBefore(tier.name, item.characterId),
+                'tier-avatar--dragging': draggingId === item.characterId,
+                'tier-avatar--insert-before': isInsertBefore(tier.name, item.characterId),
               }"
               draggable="true"
               :data-character-id="item.characterId"
-              :title="`${item.characterName} · ${item.username}`"
               @dragstart="onDragStart(item.characterId, $event)"
               @dragend="onDragEnd"
               @click.stop
             >
-              <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.characterName" />
-              <span v-else>{{ item.characterName.slice(0, 1) }}</span>
+              <AvatarCircle
+                :image-url="item.imageUrl"
+                :character-name="item.characterName"
+                :username="item.username"
+                size="sm"
+                :draggable="true"
+              />
             </div>
           </div>
         </div>
@@ -355,15 +352,16 @@ async function downloadBoardPhoto() {
 
         <div
           v-if="overTier === 'pool' && draggingItem && draggingId !== store.currentItem?.characterId"
-          class="avatar avatar--xl avatar--ghost avatar--ghost-flow rank-card__ghost"
+          class="avatar-ghost avatar-ghost--flow rank-card__ghost"
           aria-hidden="true"
         >
-          <img
-            v-if="draggingItem.imageUrl"
-            :src="draggingItem.imageUrl"
-            :alt="draggingItem.characterName"
+          <AvatarCircle
+            :image-url="draggingItem.imageUrl"
+            :character-name="draggingItem.characterName"
+            :username="draggingItem.username"
+            size="lg"
+            :show-tooltip="false"
           />
-          <span v-else>{{ draggingItem.characterName.slice(0, 1) }}</span>
         </div>
 
         <div
@@ -374,19 +372,14 @@ async function downloadBoardPhoto() {
           @dragstart="onDragStart(store.currentItem.characterId, $event)"
           @dragend="onDragEnd"
         >
-          <div
-            class="avatar avatar--xl"
-            :class="{ 'avatar--dragging': draggingId === store.currentItem.characterId }"
-          >
-            <img
-              v-if="store.currentItem.imageUrl"
-              :src="store.currentItem.imageUrl"
-              :alt="store.currentItem.characterName"
-            />
-            <span v-else>{{ store.currentItem.characterName.slice(0, 1) }}</span>
-          </div>
+          <AvatarCircle
+            :image-url="store.currentItem.imageUrl"
+            :character-name="store.currentItem.characterName"
+            :username="store.currentItem.username"
+            size="lg"
+            :draggable="true"
+          />
           <p class="rank-card__name">{{ store.currentItem.username }}</p>
-          <p class="rank-card__hint">Arraste para uma fileira</p>
         </div>
 
         <div v-else class="rank-card__empty">
@@ -400,14 +393,19 @@ async function downloadBoardPhoto() {
           <div
             v-for="item in queuePreview"
             :key="item.characterId"
-            class="avatar avatar--sm"
-            :class="{ 'avatar--dragging': draggingId === item.characterId }"
-            :title="item.username"
+            class="queue-avatar"
+            :class="{ 'queue-avatar--dragging': draggingId === item.characterId }"
             draggable="true"
             @dragstart="onDragStart(item.characterId, $event)"
             @dragend="onDragEnd"
           >
-            <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.characterName" />
+            <AvatarCircle
+              :image-url="item.imageUrl"
+              :character-name="item.characterName"
+              :username="item.username"
+              size="xs"
+              :draggable="true"
+            />
           </div>
         </div>
       </aside>

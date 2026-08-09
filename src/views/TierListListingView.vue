@@ -15,6 +15,14 @@ onMounted(() => {
 function navigateToTierlist(id: number) {
   router.push({ name: 'tierlist', params: { id: id.toString() } })
 }
+
+function navigateToAddFriend() {
+  router.push({ name: 'add-friend' })
+}
+
+function navigateToFriendsList() {
+  router.push({ name: 'friends-list' })
+}
 </script>
 
 <template>
@@ -22,8 +30,8 @@ function navigateToTierlist(id: number) {
     <header class="listing-header">
       <h1 class="listing-title">Ranqueando os desgraçados dos meus amigos</h1>
       <div class="listing-actions">
-        <button type="button" class="btn-primary" disabled>Adicionar amigo</button>
-        <button type="button" class="btn-edit" disabled>Editar amigos</button>
+        <button type="button" class="btn-primary" @click="navigateToAddFriend">Adicionar amigo</button>
+        <button type="button" class="btn-edit" @click="navigateToFriendsList">Editar amigos</button>
       </div>
     </header>
 
