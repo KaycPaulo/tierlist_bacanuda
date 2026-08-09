@@ -123,7 +123,18 @@ export const useTierlistStore = defineStore('tierlist', () => {
     return data
   }
 
-  async function resolveTierlist(): Promise<Tierlist | null> {
+  async function resolveTierlist(tierlistId?: number): Promise<Tierlist | null> {
+    if (tierlistId) {
+      const { data, error: tierlistError } = await supabase
+        .from('tierlists')
+        .select('id, name, is_active, created_by')
+        .eq('id', tierlistId)
+        .maybeSingle()
+
+      if (tierlistError) throw tierlistError
+      return data
+    }
+
     const configuredTierlistId = import.meta.env.VITE_TIERLIST_ID?.trim()
 
     if (configuredTierlistId) {
@@ -149,7 +160,7 @@ export const useTierlistStore = defineStore('tierlist', () => {
     return data
   }
 
-  async function fetchBoard() {
+  async function fetchBoard(tierlistId?: number) {
     if (!isSupabaseConfigured()) {
       error.value =
         'Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env e reinicie o npm run dev.'
@@ -178,7 +189,7 @@ export const useTierlistStore = defineStore('tierlist', () => {
         return
       }
 
-      const currentTierlist = await resolveTierlist()
+      const currentTierlist = await resolveTierlist(tierlistId)
       if (!currentTierlist) {
         loadLocalMockBoard()
         error.value =

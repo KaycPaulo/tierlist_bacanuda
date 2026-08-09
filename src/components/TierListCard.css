@@ -1,0 +1,89 @@
+.tier-card {
+  background: var(--color-card-bg);
+  border-radius: var(--space-3);
+  padding: var(--space-4);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tier-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.tier-card__top {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  margin-bottom: var(--space-4);
+}
+
+.tier-card__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.tier-card__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 var(--space-1) 0;
+}
+
+.tier-card__host {
+  font-size: 14px;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.tier-card__host span {
+  color: var(--color-host);
+}
+
+.tier-card__avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.tier-card__divider {
+  height: 1px;
+  background: var(--color-divider);
+  margin-bottom: var(--space-4);
+}
+
+.tier-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tier-card__friends {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-friends-icon);
+  font-size: 14px;
+}
+
+.tier-card__friends svg {
+  flex-shrink: 0;
+}
+
+.tier-card__friends span {
+  color: var(--color-text);
+}
+
+.tier-card__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tier-card__status svg {
+  flex-shrink: 0;
+}

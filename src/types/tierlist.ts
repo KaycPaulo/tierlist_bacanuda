@@ -66,3 +66,15 @@ export interface PeopleCharacterLinkRow {
   peoples: Person | Person[] | null
   character: Character | Character[] | null
 }
+
+export type TierlistStatus = 'completed' | 'in_progress' | 'pending'
+
+export interface TierlistSummary {
+  id: number
+  name: string
+  host: Person
+  totalFriends: number
+  rankedCount: number
+  pendingCount: number
+  status: TierlistStatus
+}

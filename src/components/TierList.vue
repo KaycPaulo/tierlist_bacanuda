@@ -5,17 +5,13 @@ export default {
 </script>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import type { DropTarget } from '../constants/ranks'
 import { useTierlistStore } from '../stores/tierlist'
 
 const store = useTierlistStore()
 const draggingId = ref<number | null>(null)
 const overTier = ref<DropTarget | null>(null)
-
-onMounted(() => {
-  void store.fetchBoard()
-})
 
 function onDragStart(characterId: number, event: DragEvent) {
   draggingId.value = characterId
