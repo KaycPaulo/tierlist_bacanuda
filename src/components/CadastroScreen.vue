@@ -9,16 +9,16 @@ import { onMounted, ref, watch } from 'vue'
 import {
   createLinkedPair,
   linkPersonToCharacter,
+  listCharacters,
+  listPeoples,
   listPersonCharacterLinks,
   slugify,
 } from '../lib/cadastro'
-import { useTierlistStore } from '../stores/tierlist'
+import type { Character, Person } from '../types/tierlist'
 
 const emit = defineEmits<{
   back: []
 }>()
-
-const store = useTierlistStore()
 
 const username = ref('')
 const personAvatar = ref('')
@@ -31,6 +31,8 @@ const error = ref<string | null>(null)
 const success = ref<string | null>(null)
 const previewOk = ref(false)
 const previewFailed = ref(false)
+const peoples = ref<Person[]>([])
+const characters = ref<Character[]>([])
 const linkByPerson = ref<Record<string, number | null>>({})
 const linkSaving = ref<string | null>(null)
 const linkError = ref<string | null>(null)
@@ -45,12 +47,17 @@ watch(characterImage, () => {
 })
 
 async function refresh() {
-  await store.fetchBoard()
   try {
-    const links = await listPersonCharacterLinks()
+    const [peopleRows, characterRows, links] = await Promise.all([
+      listPeoples(),
+      listCharacters(),
+      listPersonCharacterLinks(),
+    ])
+    peoples.value = peopleRows
+    characters.value = characterRows
     const map: Record<string, number | null> = {}
-    for (const people of store.peoples) {
-      map[people.id] = links.find((link) => link.user_id === people.id)?.character_id ?? null
+    for (const person of peopleRows) {
+      map[person.id] = links.find((link) => link.user_id === person.id)?.character_id ?? null
     }
     linkByPerson.value = map
   } catch (err) {
@@ -120,7 +127,6 @@ async function onAssignCharacter(personId: string, event: Event) {
   try {
     await linkPersonToCharacter(personId, characterId)
     linkByPerson.value = { ...linkByPerson.value, [personId]: characterId }
-    await store.fetchBoard()
   } catch (err) {
     linkError.value = err instanceof Error ? err.message : 'Falha ao vincular.'
     select.value = String(linkByPerson.value[personId] ?? '')
@@ -204,30 +210,25 @@ async function onAssignCharacter(personId: string, event: Event) {
     </form>
 
     <section class="cadastro__card cadastro__visibility">
-      <h2>Vínculos e visibilidade</h2>
-      <p class="cadastro__hint">
-        Escolha o personagem de cada pessoa. Marque “Não aparecer” para ocultar na tierlist.
-      </p>
+      <h2>Vínculos</h2>
+      <p class="cadastro__hint">Escolha o personagem de cada pessoa.</p>
 
       <p v-if="linkError" class="cadastro__msg cadastro__msg--error">{{ linkError }}</p>
 
-      <ul v-if="store.peoples.length" class="cadastro__people">
-        <li v-for="people in store.peoples" :key="people.id" class="cadastro__people-item">
+      <ul v-if="peoples.length" class="cadastro__people">
+        <li v-for="person in peoples" :key="person.id" class="cadastro__people-item">
           <div class="cadastro__people-info">
             <img
-              v-if="people.avatar_url"
+              v-if="person.avatar_url"
               class="cadastro__people-avatar"
-              :src="people.avatar_url"
-              :alt="people.username"
+              :src="person.avatar_url"
+              :alt="person.username"
             />
             <span v-else class="cadastro__people-avatar cadastro__people-avatar--letter">
-              {{ people.username.slice(0, 1).toUpperCase() }}
+              {{ person.username.slice(0, 1).toUpperCase() }}
             </span>
             <div>
-              <strong>{{ people.username }}</strong>
-              <small>
-                {{ store.isPersonExcluded(people.id) ? 'Oculta na tierlist' : 'Visível' }}
-              </small>
+              <strong>{{ person.username }}</strong>
             </div>
           </div>
 
@@ -235,28 +236,19 @@ async function onAssignCharacter(personId: string, event: Event) {
             <label class="cadastro__field cadastro__field--inline">
               <span>Personagem</span>
               <select
-                :value="linkByPerson[people.id] ?? ''"
-                :disabled="linkSaving === people.id"
-                @change="onAssignCharacter(people.id, $event)"
+                :value="linkByPerson[person.id] ?? ''"
+                :disabled="linkSaving === person.id"
+                @change="onAssignCharacter(person.id, $event)"
               >
                 <option disabled value="">Selecionar...</option>
                 <option
-                  v-for="character in store.characters"
+                  v-for="character in characters"
                   :key="character.id"
                   :value="character.id"
                 >
                   {{ character.name }}
                 </option>
               </select>
-            </label>
-
-            <label class="cadastro__toggle">
-              <input
-                type="checkbox"
-                :checked="store.isPersonExcluded(people.id)"
-                @change="store.togglePersonExcluded(people.id)"
-              />
-              <span>Não aparecer</span>
             </label>
           </div>
         </li>

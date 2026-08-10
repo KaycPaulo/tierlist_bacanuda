@@ -3,7 +3,6 @@ import { fileURLToPath, URL } from 'node:url'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import vueDevTools from 'vite-plugin-vue-devtools'
 
 /** Proxy same-origin para baixar avatares externos na captura da tier. */
 function imageProxyPlugin(): Plugin {
@@ -73,7 +72,7 @@ function imageProxyPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [vue(), vueDevTools(), imageProxyPlugin()],
+  plugins: [vue(), imageProxyPlugin()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

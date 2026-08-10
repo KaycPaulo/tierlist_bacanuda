@@ -534,7 +534,7 @@ async function finalizeTierList() {
     await new Promise((resolve) => setTimeout(resolve, 500))
     
     // Captura a foto automaticamente
-    await capturePhotoAutomaticamente()
+    await capturePhotoAutomatically()
   } catch {
     // erro já no store
   } finally {

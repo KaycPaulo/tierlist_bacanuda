@@ -112,6 +112,20 @@ export async function listPeoples(): Promise<Person[]> {
   return (data ?? []) as Person[]
 }
 
+export async function listCharacters(): Promise<Character[]> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env')
+  }
+
+  const { data, error } = await supabase
+    .from('character')
+    .select('*')
+    .order('name', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return (data ?? []) as Character[]
+}
+
 export async function createCharacter(input: {
   name: string
   slug?: string
