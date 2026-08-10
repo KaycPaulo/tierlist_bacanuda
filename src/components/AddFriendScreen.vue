@@ -9,6 +9,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { createPerson, getPerson, updatePerson } from '../lib/cadastro'
 import { uploadAvatar } from '../lib/storage'
+import ShimmerBlock from './ShimmerBlock.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -148,8 +149,17 @@ async function handleSubmit() {
       </div>
     </header>
 
-    <div v-if="loadingData" class="add-friend__loading">
-      <p>Carregando dados...</p>
+    <div v-if="loadingData" class="add-friend__loading" aria-busy="true" aria-label="Carregando dados">
+      <div class="add-friend__skeleton-avatar">
+        <ShimmerBlock width="160px" height="160px" radius="50%" />
+      </div>
+      <div class="add-friend__skeleton-fields">
+        <ShimmerBlock height="0.85rem" width="30%" />
+        <ShimmerBlock height="2.75rem" radius="10px" />
+        <ShimmerBlock height="0.85rem" width="35%" />
+        <ShimmerBlock height="2.75rem" radius="10px" />
+        <ShimmerBlock height="2.75rem" width="160px" radius="10px" />
+      </div>
     </div>
 
     <form v-if="!loadingData" class="add-friend__form" @submit.prevent="handleSubmit">
@@ -293,9 +303,25 @@ async function handleSubmit() {
 }
 
 .add-friend__loading {
-  text-align: center;
-  padding: 3rem;
-  color: var(--ink-soft);
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.add-friend__skeleton-avatar {
+  flex-shrink: 0;
+}
+
+.add-friend__skeleton-fields {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .add-friend__back {
@@ -314,7 +340,9 @@ async function handleSubmit() {
 }
 
 .add-friend__title {
+  font-family: var(--font-title);
   font-size: 2rem;
+  font-weight: 400;
   margin: 0 0 0.5rem;
   color: var(--color-text);
 }

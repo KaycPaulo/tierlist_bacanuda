@@ -33,23 +33,22 @@ export interface Character {
 export interface Ranking {
   id: number
   tierlist_id: number
-  user_id: string
-  character_id: number
-  tier_id: number
-  position: number
+  friend_id: string
+  tier_id: number | null
+  position: number | null
 }
 
-/** Item do board: pessoa vinculada a um personagem (imagem vem do personagem). */
+/** Item do board: amigo da tabela rankings (avatar vem de peoples). */
 export interface BoardItem {
-  characterId: number
-  characterName: string
-  imageUrl: string | null
+  rankingId: number
   personId: string
   username: string
+  imageUrl: string | null
+  /** Nome da tier; null = ainda não ranqueado (pool). */
   rank: string | null
+  tierId: number | null
   /** Ordem na fila (pool) ou dentro da tier. */
   order: number
-  rankingId: number | null
 }
 
 export interface BoardTier {
@@ -68,7 +67,7 @@ export interface PeopleCharacterLinkRow {
   character: Character | Character[] | null
 }
 
-export type TierlistStatus = 'completed' | 'in_progress' | 'pending'
+export type TierlistStatus = 'completed' | 'in_progress'
 
 export interface TierlistSummary {
   id: number

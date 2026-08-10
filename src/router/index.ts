@@ -3,6 +3,7 @@ import TierListListingView from '@/views/TierListListingView.vue'
 import TierListView from '@/views/TierListView.vue'
 import FriendsListingView from '@/views/FriendsListingView.vue'
 import AddFriendScreen from '@/components/AddFriendScreen.vue'
+import AddTierListScreen from '@/components/AddTierListScreen.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -11,6 +12,16 @@ const router = createRouter({
       path: '/',
       name: 'listing',
       component: TierListListingView,
+    },
+    {
+      path: '/tierlist/create',
+      name: 'create-tierlist',
+      component: AddTierListScreen,
+    },
+    {
+      path: '/tierlist/edit/:id',
+      name: 'edit-tierlist',
+      component: AddTierListScreen,
     },
     {
       path: '/tierlist/:id',

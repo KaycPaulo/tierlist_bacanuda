@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listPeoples, deletePerson } from '@/lib/cadastro'
 import type { Person } from '@/types/tierlist'
+import ShimmerBlock from '@/components/ShimmerBlock.vue'
 
 const router = useRouter()
 
@@ -70,16 +71,29 @@ function goBack() {
     </header>
 
     <p v-if="error" class="friends-listing__error">{{ error }}</p>
-    <p v-if="loading" class="friends-listing__loading">Carregando amigos...</p>
 
-    <div v-if="!loading && peoples.length === 0" class="friends-listing__empty">
+    <div v-if="loading" class="friends-listing__grid" aria-busy="true" aria-label="Carregando amigos">
+      <div v-for="n in 6" :key="n" class="friend-skeleton-card">
+        <ShimmerBlock width="72px" height="72px" radius="50%" />
+        <div class="friend-skeleton-card__info">
+          <ShimmerBlock height="1.1rem" width="60%" />
+          <ShimmerBlock height="0.85rem" width="40%" />
+        </div>
+        <div class="friend-skeleton-card__actions">
+          <ShimmerBlock height="2.25rem" width="80px" radius="8px" />
+          <ShimmerBlock height="2.25rem" width="80px" radius="8px" />
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="peoples.length === 0" class="friends-listing__empty">
       <p>Nenhum amigo cadastrado ainda.</p>
       <button type="button" class="friends-listing__empty-btn" @click="navigateToAdd">
         Adicionar Primeiro Amigo
       </button>
     </div>
 
-    <div v-else-if="!loading" class="friends-listing__grid">
+    <div v-else class="friends-listing__grid">
       <div v-for="person in peoples" :key="person.id" class="friend-card">
         <div class="friend-card__avatar-wrapper">
           <div class="friend-card__avatar">
@@ -157,7 +171,9 @@ function goBack() {
 }
 
 .friends-listing__title {
+  font-family: var(--font-title);
   font-size: 2rem;
+  font-weight: 400;
   margin: 0;
   color: var(--color-text);
   flex: 1;
@@ -189,10 +205,27 @@ function goBack() {
   margin-bottom: 1rem;
 }
 
-.friends-listing__loading {
-  text-align: center;
-  padding: 3rem;
-  color: var(--ink-soft);
+.friend-skeleton-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--color-card-bg);
+  border-radius: 12px;
+  padding: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.friend-skeleton-card__info {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.friend-skeleton-card__actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .friends-listing__empty {

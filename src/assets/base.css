@@ -26,6 +26,10 @@
   --space-5: 20px;
   --space-6: 24px;
   
+  /* Typography */
+  --font-body: 'Poppins', sans-serif;
+  --font-title: 'Playwrite US Modern', cursive;
+
   /* Legacy tokens for TierList.vue compatibility */
   --ink: var(--color-text);
   --ink-soft: #cccccc;
@@ -58,7 +62,7 @@ body {
   margin: 0;
   color: var(--color-text);
   background: var(--color-background);
-  font-family: 'Poppins', sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.5;
   text-rendering: optimizeLegibility;

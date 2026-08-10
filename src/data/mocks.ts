@@ -142,6 +142,6 @@ export const MOCK_TIERLIST_SUMMARIES = [
     totalFriends: 15,
     rankedCount: 0,
     pendingCount: 15,
-    status: 'pending' as const,
+    status: 'in_progress' as const,
   },
 ]

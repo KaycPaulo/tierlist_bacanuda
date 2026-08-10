@@ -3,7 +3,7 @@ interface Props {
   imageUrl?: string
   characterName: string
   username: string
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl'
   draggable?: boolean
   showTooltip?: boolean
 }
@@ -20,6 +20,7 @@ const sizeMap = {
   md: '100px',
   lg: '200px',
   xl: '120px',
+  xxl: '280px',
 }
 </script>
 

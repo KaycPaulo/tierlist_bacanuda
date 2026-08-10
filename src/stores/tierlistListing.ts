@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+import { deleteTierlist } from '@/lib/tierlistCrud'
 import { MOCK_TIERLIST_SUMMARIES } from '@/data/mocks'
 import type { Person, TierlistSummary, TierlistStatus } from '@/types/tierlist'
 
@@ -20,15 +21,8 @@ function unwrapRelation<T>(value: T | T[] | null | undefined): T | null {
 }
 
 function computeStatus(rankedCount: number, totalFriends: number): TierlistStatus {
-  if (totalFriends === 0) return 'pending'
-  if (rankedCount === totalFriends) return 'completed'
-  if (rankedCount === 0) return 'pending'
+  if (totalFriends > 0 && rankedCount === totalFriends) return 'completed'
   return 'in_progress'
-}
-
-function getUserId(): string | null {
-  const envUserId = import.meta.env.VITE_USER_ID?.trim()
-  return envUserId || null
 }
 
 export const useTierlistListingStore = defineStore('tierlistListing', () => {
@@ -50,11 +44,6 @@ export const useTierlistListingStore = defineStore('tierlistListing', () => {
     }
 
     try {
-      const userId = getUserId()
-      if (!userId) {
-        throw new Error('VITE_USER_ID não configurado. Configure no .env para ver seus dados.')
-      }
-
       const { data: tierlists, error: tierlistsError } = await supabase
         .from('tierlists')
         .select('id, name, is_active, created_by, peoples:created_by(id, username, avatar_url)')
@@ -78,7 +67,7 @@ export const useTierlistListingStore = defineStore('tierlistListing', () => {
         }
 
         const { count: totalFriends } = await supabase
-          .from('tierlist_people_characters')
+          .from('rankings')
           .select('id', { count: 'exact', head: true })
           .eq('tierlist_id', tierlist.id)
 
@@ -86,11 +75,11 @@ export const useTierlistListingStore = defineStore('tierlistListing', () => {
           .from('rankings')
           .select('id', { count: 'exact', head: true })
           .eq('tierlist_id', tierlist.id)
-          .eq('user_id', userId)
+          .not('tier_id', 'is', null)
 
         const total = totalFriends ?? 0
         const ranked = rankedCount ?? 0
-        const pending = total - ranked
+        const pending = Math.max(total - ranked, 0)
 
         const summary: TierlistSummary = {
           id: tierlist.id,
@@ -117,11 +106,29 @@ export const useTierlistListingStore = defineStore('tierlistListing', () => {
     }
   }
 
+  async function removeSummary(tierlistId: number) {
+    error.value = null
+
+    if (!isSupabaseConfigured() || usingLocalMock.value) {
+      summaries.value = summaries.value.filter((summary) => summary.id !== tierlistId)
+      return
+    }
+
+    try {
+      await deleteTierlist(tierlistId)
+      summaries.value = summaries.value.filter((summary) => summary.id !== tierlistId)
+    } catch (err) {
+      error.value = getErrorMessage(err, 'Erro ao deletar tier list')
+      throw err
+    }
+  }
+
   return {
     summaries,
     loading,
     error,
     usingLocalMock,
     fetchSummaries,
+    removeSummary,
   }
 })

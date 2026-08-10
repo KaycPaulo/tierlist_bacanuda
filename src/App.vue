@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router'
+import { computed } from 'vue'
+import { RouterView, useRoute } from 'vue-router'
 import SiteReactions from './components/SiteReactions.vue'
+
+const route = useRoute()
+const showReactions = computed(() => route.name === 'tierlist')
 </script>
 
 <template>
   <RouterView />
-  <SiteReactions />
+  <SiteReactions v-if="showReactions" />
 </template>
