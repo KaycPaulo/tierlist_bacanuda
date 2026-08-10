@@ -2,7 +2,7 @@ import { getReaction, type ReactionId } from '@/constants/reactions'
 import { getSoundPhrase, type SoundPhraseId } from '@/constants/soundPhrases'
 import { EMOTE_DURATION_MS, playPhraseSound, playReactionSound } from '@/lib/reactionSounds'
 
-const SPAM_WINDOW_MS = 2000
+const SPAM_WINDOW_MS = 4000
 const SPAM_THRESHOLD = 10
 const SMALL_DURATION_MS = 1200
 
