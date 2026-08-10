@@ -1,7 +1,7 @@
 <script setup lang="ts">
 withDefaults(
   defineProps<{
-    variant?: 'primary' | 'edit'
+    variant?: 'primary' | 'edit' | 'secondary'
     type?: 'button' | 'submit' | 'reset'
     disabled?: boolean
   }>(),
@@ -44,6 +44,12 @@ withDefaults(
 .app-btn--edit {
   background: transparent;
   color: var(--color-edit);
+}
+
+.app-btn--secondary {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--line);
 }
 
 .app-btn:hover:not(:disabled) {

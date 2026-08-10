@@ -7,6 +7,7 @@ export default {
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import confetti from 'canvas-confetti'
 import type { DropTarget } from '../constants/ranks'
 import { captureBoardPng } from '../lib/captureBoard'
 import { useTierlistStore } from '../stores/tierlist'
@@ -21,6 +22,7 @@ const router = useRouter()
 
 const boardRef = ref<HTMLElement | null>(null)
 const menuRef = ref<HTMLElement | null>(null)
+const confettiCanvasRef = ref<HTMLCanvasElement | null>(null)
 const capturing = ref(false)
 const captureError = ref<string | null>(null)
 const menuOpen = ref(false)
@@ -28,7 +30,10 @@ const draggingId = ref<string | null>(null)
 const overTier = ref<DropTarget | null>(null)
 /** null = inserir no fim da fileira. */
 const overBeforeId = ref<string | null>(null)
+const showFlash = ref(false)
 let dragPreviewEl: HTMLElement | null = null
+let fireLocalConfetti: confetti.CreateTypes | null = null
+let confettiTimer: ReturnType<typeof setTimeout> | null = null
 
 const AUTO_SCROLL_EDGE = 88
 const AUTO_SCROLL_MAX_SPEED = 8
@@ -82,6 +87,8 @@ const allFriendsRanked = computed(
 )
 
 const finalizing = ref(false)
+const isFinalized = ref(false)
+const hasUserChangedRankings = ref(false)
 
 watch(
   () => store.tierlist?.id,
@@ -89,6 +96,18 @@ watch(
     revealedPersonId.value = null
     rouletteOpen.value = false
     lastRanked.value = null
+    hasUserChangedRankings.value = false
+    
+    // Ao carregar uma tier list, verifica se deve iniciar como finalizada
+    // Se todos já estão ranqueados e não está dirty (não há mudanças pendentes),
+    // significa que é uma tier list já finalizada anteriormente
+    nextTick(() => {
+      if (allFriendsRanked.value && !store.dirty) {
+        isFinalized.value = true
+      } else {
+        isFinalized.value = false
+      }
+    })
   },
 )
 
@@ -100,6 +119,21 @@ watch(
       (item) => item.personId === revealedPersonId.value && item.rank === null,
     )
     if (!stillPending) revealedPersonId.value = null
+  },
+)
+
+// Monitora mudanças nos rankings durante a sessão
+watch(
+  () => store.items.map((item) => `${item.personId}:${item.rank ?? 'pool'}`).join('|'),
+  (newVal, oldVal) => {
+    // Se houve mudança e não é a carga inicial
+    if (oldVal && newVal !== oldVal) {
+      hasUserChangedRankings.value = true
+      // Se estava finalizada e mudamos algo, remove o estado de finalizada
+      if (isFinalized.value && !allFriendsRanked.value) {
+        isFinalized.value = false
+      }
+    }
   },
 )
 
@@ -406,12 +440,101 @@ function goToNextRanking() {
   rouletteOpen.value = true
 }
 
+function ensureConfettiCannon() {
+  const canvas = confettiCanvasRef.value
+  if (!canvas) return null
+  if (!fireLocalConfetti) {
+    fireLocalConfetti = confetti.create(canvas, {
+      resize: true,
+      useWorker: true,
+    })
+  }
+  return fireLocalConfetti
+}
+
+function fireConfetti() {
+  const cannon = ensureConfettiCannon()
+  if (!cannon) return
+
+  const burst = (originX: number, originY: number, count: number) => {
+    cannon({
+      particleCount: count,
+      spread: 68,
+      startVelocity: 42,
+      gravity: 1.05,
+      ticks: 180,
+      origin: { x: originX, y: originY },
+      colors: ['#4088f4', '#41e0e0', '#ffdb5e', '#2ee512', '#ff8f8f', '#ffffff'],
+      disableForReducedMotion: true,
+    })
+  }
+
+  burst(0.12, 0.28, 80)
+  burst(0.88, 0.28, 80)
+  burst(0.5, 0.18, 100)
+  burst(0.28, 0.55, 50)
+  burst(0.72, 0.55, 50)
+
+  if (confettiTimer) clearTimeout(confettiTimer)
+  confettiTimer = setTimeout(() => {
+    burst(0.5, 0.42, 60)
+  }, 280)
+}
+
+async function triggerCameraFlash() {
+  showFlash.value = true
+  await nextTick()
+  await new Promise((resolve) => setTimeout(resolve, 150))
+  showFlash.value = false
+}
+
+async function capturePhotoAutomatically() {
+  if (!boardRef.value || capturing.value) return
+  capturing.value = true
+  captureError.value = null
+  await nextTick()
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+
+  try {
+    await triggerCameraFlash()
+    const dataUrl = await captureBoardPng(boardRef.value)
+    const link = document.createElement('a')
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+    link.download = `tierlist-${stamp}.png`
+    link.href = dataUrl
+    link.click()
+  } catch (err) {
+    console.error('[capture]', err)
+    captureError.value =
+      err instanceof Error
+        ? `Não foi possível gerar a foto: ${err.message}`
+        : 'Não foi possível gerar a foto da tier.'
+  } finally {
+    capturing.value = false
+  }
+}
+
+async function takePhotoFromFinalized() {
+  await capturePhotoAutomatically()
+}
+
 async function finalizeTierList() {
   if (finalizing.value) return
   finalizing.value = true
   try {
     await store.saveBoard()
-    await router.push({ name: 'listing' })
+    
+    // Marca explicitamente como finalizada
+    isFinalized.value = true
+    
+    // Dispara confete
+    fireConfetti()
+    
+    // Aguarda um pouco para o confete começar
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    
+    // Captura a foto automaticamente
+    await capturePhotoAutomaticamente()
   } catch {
     // erro já no store
   } finally {
@@ -485,6 +608,7 @@ async function downloadBoardPhoto() {
   await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
 
   try {
+    await triggerCameraFlash()
     const dataUrl = await captureBoardPng(boardRef.value)
     const link = document.createElement('a')
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
@@ -519,6 +643,8 @@ function resetTierList() {
   revealedPersonId.value = null
   rouletteOpen.value = false
   lastRanked.value = null
+  isFinalized.value = false
+  hasUserChangedRankings.value = true
 }
 
 onBeforeRouteLeave(async () => {
@@ -542,6 +668,9 @@ onBeforeUnmount(() => {
   stopAutoScroll()
   clearDragPreview()
   reactionBroadcastService.stop()
+  if (confettiTimer) clearTimeout(confettiTimer)
+  fireLocalConfetti?.reset()
+  fireLocalConfetti = null
 })
 </script>
 
@@ -708,13 +837,40 @@ onBeforeUnmount(() => {
 
         <div
           class="rank-card"
-          :class="{ 'rank-card--over': overTier === 'pool' }"
-          @dragover="onPoolDragOver"
-          @drop="onPoolDrop"
+          :class="{ 'rank-card--over': overTier === 'pool' && !isFinalized }"
+          @dragover="!isFinalized && onPoolDragOver($event)"
+          @drop="!isFinalized && onPoolDrop($event)"
         >
-          <h2 class="rank-card__title">Hora de Ranquear</h2>
+          <h2 v-if="!isFinalized" class="rank-card__title">Hora de Ranquear</h2>
 
-          <div v-if="lastRanked" class="rank-card__success">
+          <div v-if="isFinalized" class="rank-card__finalized">
+            <div class="rank-card__finalized-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
+                />
+              </svg>
+            </div>
+            <h2 class="rank-card__finalized-title">Tier List Finalizada</h2>
+            <p class="rank-card__finalized-text">Sua tier list foi salva com sucesso!</p>
+            <div class="rank-card__finalized-actions">
+              <AppButton
+                :disabled="capturing"
+                @click="takePhotoFromFinalized"
+              >
+                {{ capturing ? 'Gerando foto...' : 'Tirar Foto' }}
+              </AppButton>
+              <AppButton
+                variant="secondary"
+                @click="resetTierList"
+              >
+                Resetar Tier List
+              </AppButton>
+            </div>
+          </div>
+
+          <div v-else-if="lastRanked" class="rank-card__success">
             <div class="rank-card__success-badge" aria-hidden="true">
               <span class="rank-card__success-check">
                 <svg viewBox="0 0 16 16" width="48" height="48" aria-hidden="true">
@@ -818,6 +974,10 @@ onBeforeUnmount(() => {
       @confirm="confirmRoulettePick"
       @cancel="cancelRoulette"
     />
+
+    <canvas ref="confettiCanvasRef" class="tierlist__confetti" aria-hidden="true" />
+    
+    <div v-if="showFlash" class="camera-flash" aria-hidden="true" />
   </section>
 </template>
 
