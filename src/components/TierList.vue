@@ -6,16 +6,18 @@ export default {
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import type { DropTarget } from '../constants/ranks'
 import { captureBoardPng } from '../lib/captureBoard'
 import { useTierlistStore } from '../stores/tierlist'
+import { reactionBroadcastService } from '../services/reactionBroadcast'
 import AvatarCircle from './AvatarCircle.vue'
 import AppButton from './AppButton.vue'
 import RankRouletteModal from './RankRouletteModal.vue'
 import ShimmerBlock from './ShimmerBlock.vue'
 
 const store = useTierlistStore()
+const router = useRouter()
 
 const boardRef = ref<HTMLElement | null>(null)
 const menuRef = ref<HTMLElement | null>(null)
@@ -38,6 +40,12 @@ let smoothedScrollDelta = 0
 /** Amigo liberado pela roleta para ranquear agora. */
 const revealedPersonId = ref<string | null>(null)
 const rouletteOpen = ref(false)
+const lastRanked = ref<{
+  personId: string
+  username: string
+  tierName: string
+  tierIcon: string
+} | null>(null)
 
 const draggingItem = computed(() =>
   store.items.find((item) => item.personId === draggingId.value) ?? null,
@@ -61,14 +69,26 @@ const startButtonLabel = computed(() =>
 )
 
 const canStartRanking = computed(
-  () => !store.loading && store.poolItems.length > 0 && !activeItem.value && !rouletteOpen.value,
+  () =>
+    !store.loading &&
+    store.poolItems.length > 0 &&
+    !activeItem.value &&
+    !rouletteOpen.value &&
+    !lastRanked.value,
 )
+
+const allFriendsRanked = computed(
+  () => !store.loading && store.items.length > 0 && store.poolItems.length === 0,
+)
+
+const finalizing = ref(false)
 
 watch(
   () => store.tierlist?.id,
   () => {
     revealedPersonId.value = null
     rouletteOpen.value = false
+    lastRanked.value = null
   },
 )
 
@@ -303,7 +323,12 @@ function onTierDrop(tierName: string, event: DragEvent) {
     ? resolveInsertBeforeId(track, event.clientX, event.clientY)
     : null
   if (personId) {
+    const item = store.items.find((entry) => entry.personId === personId)
+    const wasUnranked = item?.rank === null
     store.moveItem(personId, tierName, beforeId)
+    if (item && (wasUnranked || lastRanked.value?.personId === personId)) {
+      markRankedSuccess(item.personId, item.username, tierName)
+    }
   }
   resetDragState()
 }
@@ -324,28 +349,74 @@ function onPoolDrop(event: DragEvent) {
   if (personId) {
     store.moveItem(personId, 'pool', null)
     revealedPersonId.value = personId
+    lastRanked.value = null
     rouletteOpen.value = false
   }
   resetDragState()
 }
 
+function markRankedSuccess(personId: string, username: string, tierName: string) {
+  const tier = store.tiers.find((entry) => entry.name === tierName)
+  revealedPersonId.value = null
+  lastRanked.value = {
+    personId,
+    username,
+    tierName,
+    tierIcon: tier?.icon ?? '',
+  }
+}
+
 function assignCurrent(rank: string) {
-  if (!activeItem.value || draggingId.value != null) return
-  store.moveItem(activeItem.value.personId, rank)
+  if (draggingId.value != null) return
+
+  if (activeItem.value) {
+    const item = activeItem.value
+    store.moveItem(item.personId, rank)
+    markRankedSuccess(item.personId, item.username, rank)
+    return
+  }
+
+  // Com o card de sucesso aberto, clicar numa tier reposiciona esse amigo.
+  if (lastRanked.value) {
+    const { personId, username } = lastRanked.value
+    store.moveItem(personId, rank)
+    markRankedSuccess(personId, username, rank)
+  }
 }
 
 function openRankingRoulette() {
   if (!canStartRanking.value) return
+  lastRanked.value = null
   rouletteOpen.value = true
 }
 
 function confirmRoulettePick(personId: string) {
   revealedPersonId.value = personId
+  lastRanked.value = null
   rouletteOpen.value = false
 }
 
 function cancelRoulette() {
   rouletteOpen.value = false
+}
+
+function goToNextRanking() {
+  lastRanked.value = null
+  if (store.poolItems.length === 0) return
+  rouletteOpen.value = true
+}
+
+async function finalizeTierList() {
+  if (finalizing.value) return
+  finalizing.value = true
+  try {
+    await store.saveBoard()
+    await router.push({ name: 'listing' })
+  } catch {
+    // erro já no store
+  } finally {
+    finalizing.value = false
+  }
 }
 
 function isInsertBefore(tierName: string, personId: string) {
@@ -356,11 +427,37 @@ function isInsertBefore(tierName: string, personId: string) {
   )
 }
 
+/** Evita fantasma colado no próprio item cinza quando a posição não mudaria. */
+function isNoOpInsertBefore(tierName: string, beforePersonId: string) {
+  const dragging = draggingItem.value
+  if (!dragging || dragging.rank !== tierName) return false
+  const list = store.itemsInRank(tierName)
+  const from = list.findIndex((item) => item.personId === dragging.personId)
+  const to = list.findIndex((item) => item.personId === beforePersonId)
+  return from >= 0 && to >= 0 && from === to - 1
+}
+
+function isNoOpInsertAtEnd(tierName: string) {
+  const dragging = draggingItem.value
+  if (!dragging || dragging.rank !== tierName) return false
+  const list = store.itemsInRank(tierName)
+  return list.length > 0 && list[list.length - 1]!.personId === dragging.personId
+}
+
+function shouldShowGhostBefore(tierName: string, personId: string) {
+  return (
+    isInsertBefore(tierName, personId) &&
+    draggingItem.value != null &&
+    !isNoOpInsertBefore(tierName, personId)
+  )
+}
+
 function showGhostAtEnd(tierName: string) {
   return (
     overTier.value === tierName &&
     draggingItem.value != null &&
-    overBeforeId.value === null
+    overBeforeId.value === null &&
+    !isNoOpInsertAtEnd(tierName)
   )
 }
 
@@ -421,6 +518,7 @@ function resetTierList() {
   store.resetRankings()
   revealedPersonId.value = null
   rouletteOpen.value = false
+  lastRanked.value = null
 }
 
 onBeforeRouteLeave(async () => {
@@ -435,6 +533,7 @@ onBeforeRouteLeave(async () => {
 
 onMounted(() => {
   document.addEventListener('pointerdown', onDocumentPointerDown)
+  reactionBroadcastService.start()
 })
 
 onBeforeUnmount(() => {
@@ -442,6 +541,7 @@ onBeforeUnmount(() => {
   detachDragScrollListeners()
   stopAutoScroll()
   clearDragPreview()
+  reactionBroadcastService.stop()
 })
 </script>
 
@@ -477,14 +577,18 @@ onBeforeUnmount(() => {
           :aria-expanded="menuOpen"
           @click="toggleMenu"
         >
-          <span class="screen__menu-icon" aria-hidden="true">
-            <span class="screen__menu-line">
-              <span class="screen__menu-knob screen__menu-knob--top" />
-            </span>
-            <span class="screen__menu-line">
-              <span class="screen__menu-knob screen__menu-knob--bottom" />
-            </span>
-          </span>
+          <svg
+            class="screen__menu-icon"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.03-1.58ZM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2Z"
+            />
+          </svg>
         </button>
 
         <div v-if="menuOpen" class="screen__menu-panel" role="menu">
@@ -536,7 +640,7 @@ onBeforeUnmount(() => {
           <div class="tier__track">
             <template v-for="item in store.itemsInRank(tier.name)" :key="item.personId">
               <div
-                v-if="isInsertBefore(tier.name, item.personId) && draggingItem"
+                v-if="shouldShowGhostBefore(tier.name, item.personId) && draggingItem"
                 class="avatar-ghost avatar-ghost--flow"
                 aria-hidden="true"
               >
@@ -610,8 +714,46 @@ onBeforeUnmount(() => {
         >
           <h2 class="rank-card__title">Hora de Ranquear</h2>
 
+          <div v-if="lastRanked" class="rank-card__success">
+            <div class="rank-card__success-badge" aria-hidden="true">
+              <span class="rank-card__success-check">
+                <svg viewBox="0 0 16 16" width="48" height="48" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L7 9.94l5.72-5.72a.75.75 0 0 1 1.06 0Z"
+                  />
+                </svg>
+              </span>
+            </div>
+            <p class="rank-card__success-text">
+              <span class="rank-card__success-line">{{ lastRanked.username }} ranqueado em</span>
+              <span class="rank-card__success-tier">
+                <img
+                  v-if="lastRanked.tierIcon"
+                  :src="`/${lastRanked.tierIcon}`"
+                  :alt="lastRanked.tierName"
+                  class="rank-card__success-tier-icon"
+                />
+                <span>{{ lastRanked.tierName }}</span>
+              </span>
+            </p>
+            <AppButton
+              v-if="store.poolItems.length > 0"
+              @click="goToNextRanking"
+            >
+              Próximo
+            </AppButton>
+            <AppButton
+              v-else
+              :disabled="finalizing || store.saving"
+              @click="finalizeTierList"
+            >
+              {{ finalizing || store.saving ? 'Finalizando...' : 'Finalizar Tier List' }}
+            </AppButton>
+          </div>
+
           <div
-            v-if="overTier === 'pool' && draggingItem && draggingId !== activeItem?.personId"
+            v-else-if="overTier === 'pool' && draggingItem && draggingId !== activeItem?.personId"
             class="avatar-ghost avatar-ghost--flow rank-card__ghost"
             aria-hidden="true"
           >
@@ -625,7 +767,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div
-            v-if="activeItem"
+            v-else-if="activeItem"
             class="rank-card__hero"
             :class="{ 'rank-card__hero--dragging': draggingId === activeItem.personId }"
             draggable="true"
@@ -657,7 +799,14 @@ onBeforeUnmount(() => {
 
           <div v-else class="rank-card__empty">
             <p>Todos ranqueados</p>
-            <p class="rank-card__hint">Solte aqui para ranquear de novo</p>
+            <AppButton
+              v-if="allFriendsRanked"
+              :disabled="finalizing || store.saving"
+              @click="finalizeTierList"
+            >
+              {{ finalizing || store.saving ? 'Finalizando...' : 'Finalizar Tier List' }}
+            </AppButton>
+            <p v-else class="rank-card__hint">Solte aqui para ranquear de novo</p>
           </div>
         </div>
       </aside>

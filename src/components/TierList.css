@@ -75,37 +75,8 @@
 }
 
 .screen__menu-icon {
-  width: 22px;
-  height: 16px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.screen__menu-line {
-  position: relative;
-  height: 2px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.screen__menu-knob {
-  position: absolute;
-  top: 50%;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-  border: 2px solid var(--page);
-  transform: translateY(-50%);
-}
-
-.screen__menu-knob--top {
-  left: 3px;
-}
-
-.screen__menu-knob--bottom {
-  right: 3px;
+  display: block;
+  opacity: 0.92;
 }
 
 .screen__menu-panel {
@@ -362,6 +333,66 @@
   font-size: 0.9rem;
   line-height: 1.35;
   opacity: 0.85;
+}
+
+.rank-card__success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.15rem;
+  width: 100%;
+  padding: 0.75rem 0.25rem 0.25rem;
+  text-align: center;
+}
+
+.rank-card__success-badge {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: #1fa812;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.rank-card__success-check {
+  display: grid;
+  place-items: center;
+  line-height: 0;
+  color: #ffffff;
+}
+
+.rank-card__success-text {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--ink);
+}
+
+.rank-card__success-line {
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.rank-card__success-tier {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.rank-card__success-tier-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .host-card {

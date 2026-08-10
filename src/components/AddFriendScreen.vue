@@ -8,7 +8,7 @@ export default {
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { createPerson, getPerson, updatePerson } from '../lib/cadastro'
-import { uploadAvatar } from '../lib/storage'
+import { normalizeAvatarBaseName, uploadAvatar } from '../lib/storage'
 import ShimmerBlock from './ShimmerBlock.vue'
 
 const router = useRouter()
@@ -33,6 +33,9 @@ const pageSubtitle = computed(() =>
   isEditMode.value ? 'Altere as informações do amigo' : 'Preencha as informações do amigo',
 )
 const submitButtonText = computed(() => (isEditMode.value ? 'Salvar Alterações' : 'Adicionar Amigo'))
+const avatarFileHint = computed(
+  () => `avatar_${normalizeAvatarBaseName(username.value || 'nome')}.jpg`,
+)
 
 const isValid = computed(() => {
   const hasUsername = username.value.trim() !== ''
@@ -216,7 +219,7 @@ async function handleSubmit() {
 
           <p class="add-friend__image-note">
             O arquivo será salvo como: <br />
-            <code>avatar_{{ username.toLowerCase() || 'nome' }}.jpg</code>
+            <code>{{ avatarFileHint }}</code>
           </p>
         </div>
 
