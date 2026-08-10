@@ -1,4 +1,5 @@
 import type { ReactionId } from '@/constants/reactions'
+import { SOUND_PHRASES } from '@/constants/soundPhrases'
 
 let audioCtx: AudioContext | null = null
 
@@ -250,6 +251,7 @@ const PLAYERS: Record<ReactionId, (ctx: AudioContext) => void> = {
   },
 }
 
+/** Só reações listadas aqui tocam som. As demais são silenciosas. */
 const AUDIO_FILES: Partial<
   Record<
     ReactionId,
@@ -261,9 +263,28 @@ const AUDIO_FILES: Partial<
     }
   >
 > = {
+  tomato: {
+    src: '/sounds/tomate.mp3',
+    volume: 0.9,
+  },
+  laugh: {
+    src: '/sounds/gato_rindo.mp3',
+    volume: 0.95,
+  },
+  swear: {
+    src: '/sounds/fuck_yourself.mp3',
+    volume: 0.95,
+  },
+  clap: {
+    src: '/sounds/applause.mp3',
+    volume: 0.95,
+  },
+  heart: {
+    src: '/sounds/kiss.mp3',
+    volume: 0.95,
+  },
   poop: {
-    src: '/sounds/poop.mp3',
-    playbackRate: 0.62,
+    src: '/sounds/bosta.mp3',
     volume: 0.95,
   },
 }
@@ -288,19 +309,23 @@ async function loadBuffer(src: string) {
   return buffer
 }
 
-/** Pré-carrega MP3s das reações para tocar sem atraso. */
+/** Pré-carrega MP3s das reações e frases para tocar sem atraso. */
 export function preloadReactionSounds() {
   if (preloadPromise) return preloadPromise
 
   preloadPromise = (async () => {
     getContext()
+    const sources = [
+      ...Object.values(AUDIO_FILES).map((file) => file?.src),
+      ...SOUND_PHRASES.map((phrase) => phrase.src),
+    ].filter((src): src is string => Boolean(src))
+
     await Promise.all(
-      Object.values(AUDIO_FILES).map(async (file) => {
-        if (!file) return
+      [...new Set(sources)].map(async (src) => {
         try {
-          await loadBuffer(file.src)
+          await loadBuffer(src)
         } catch (error) {
-          console.warn('[reactionSounds] falha ao pré-carregar', file.src, error)
+          console.warn('[reactionSounds] falha ao pré-carregar', src, error)
         }
       }),
     )
@@ -350,30 +375,76 @@ function playBufferedForEmote(
 
 export async function playReactionSound(
   reactionId: ReactionId,
-  options?: { durationMs?: number },
+  options?: { durationMs?: number; playFull?: boolean },
 ) {
-  const durationMs = options?.durationMs ?? EMOTE_DURATION_MS
   const file = AUDIO_FILES[reactionId]
-  const ctx = getContext()
+  // Sem mapeamento de áudio = silêncio (não toca fallback sintético).
+  if (!file) return
 
+  try {
+    return await playSoundSrc(file.src, {
+      durationMs: options?.durationMs,
+      playFull: options?.playFull,
+      playbackRate: file.playbackRate,
+      volume: file.volume,
+    })
+  } catch (error) {
+    console.warn('[reactionSounds] falha ao tocar MP3, usando fallback', error)
+  }
+
+  const ctx = getContext()
+  if (!ctx) return
+  PLAYERS[reactionId]?.(ctx)
+}
+
+/** Toca um MP3 arbitrário (frases do dock, etc.). */
+export async function playSoundSrc(
+  src: string,
+  options?: {
+    durationMs?: number
+    playFull?: boolean
+    playbackRate?: number
+    volume?: number
+  },
+) {
+  const ctx = getContext()
   if (ctx?.state === 'suspended') {
     await ctx.resume()
   }
 
-  if (file) {
-    try {
-      // Garante buffer pronto; na 1ª vez pode carregar, depois é instantâneo
-      await preloadReactionSounds()
-      const buffer = await loadBuffer(file.src)
-      return playBufferedForEmote(buffer, durationMs, {
-        playbackRate: file.playbackRate,
-        volume: file.volume,
-      })
-    } catch (error) {
-      console.warn('[reactionSounds] falha ao tocar MP3, usando fallback', error)
-    }
+  await preloadReactionSounds()
+  const buffer = await loadBuffer(src)
+  const playbackRate = options?.playbackRate ?? 1
+  const durationMs = options?.playFull
+    ? (buffer.duration * 1000) / playbackRate
+    : (options?.durationMs ?? (buffer.duration * 1000) / playbackRate)
+
+  return playBufferedForEmote(buffer, durationMs, {
+    playbackRate: options?.playbackRate,
+    volume: options?.volume ?? 0.95,
+  })
+}
+
+let stopActivePhrase: (() => void) | null = null
+let phraseGeneration = 0
+
+/** Toca frase: no máximo 1 por vez (a nova corta a anterior). */
+export async function playPhraseSound(src: string) {
+  const generation = ++phraseGeneration
+  if (stopActivePhrase) {
+    stopActivePhrase()
+    stopActivePhrase = null
   }
 
-  if (!ctx) return
-  PLAYERS[reactionId]?.(ctx)
+  const stop = await playSoundSrc(src, { playFull: true, volume: 0.95 })
+  if (generation !== phraseGeneration) {
+    stop?.()
+    return
+  }
+  if (!stop) return
+
+  stopActivePhrase = () => {
+    stop()
+    if (phraseGeneration === generation) stopActivePhrase = null
+  }
 }

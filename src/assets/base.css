@@ -1,17 +1,47 @@
 :root {
-  --ink: #f3f4f6;
-  --ink-soft: #d1d5db;
-  --muted: #9ca3af;
-  --line: #2a2f38;
-  --panel: #1a1d24;
-  --panel-strong: #22262f;
-  --chip: #232833;
-  --chip-hover: #2c3240;
-  --accent: #5b8def;
-  --ring: #4c7dff;
-  --page: #0e1014;
-  --color-background: var(--page);
-  --color-text: var(--ink);
+  /* Core colors */
+  --color-background: #121212;
+  --color-text: #ffffff;
+  --color-card-bg: rgba(40, 40, 40, 0.8);
+  
+  /* Action colors */
+  --color-primary: #3133a1;
+  --color-edit: #4088f4;
+  
+  /* Status colors */
+  --color-completed: #2ee512;
+  --color-in-progress: #ffdb5e;
+  --color-pending: #cc3333;
+  
+  /* Semantic colors */
+  --color-host: #7ba6e6;
+  --color-friends-icon: #41e0e0;
+  --color-divider: #7ba6e6;
+  
+  /* Spacing tokens (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  
+  /* Typography */
+  --font-body: 'Poppins', sans-serif;
+  --font-title: 'Playwrite US Modern', cursive;
+
+  /* Legacy tokens for TierList.vue compatibility */
+  --ink: var(--color-text);
+  --ink-soft: #cccccc;
+  --muted: #999999;
+  --line: #444444;
+  --panel: rgba(40, 40, 40, 0.78);
+  --panel-strong: rgba(40, 40, 40, 0.96);
+  --chip: #333333;
+  --chip-hover: #444444;
+  --accent: var(--color-primary);
+  --ring: var(--color-primary);
+  --page: var(--color-background);
 }
 
 *,
@@ -31,8 +61,8 @@ body {
   min-height: 100vh;
   margin: 0;
   color: var(--color-text);
-  background: radial-gradient(circle at 50% 0%, #171b22 0%, var(--page) 48%);
-  font-family: 'DM Sans', sans-serif;
+  background: var(--color-background);
+  font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.5;
   text-rendering: optimizeLegibility;

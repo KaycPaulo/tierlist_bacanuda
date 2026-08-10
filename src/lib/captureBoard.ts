@@ -106,7 +106,7 @@ export async function captureBoardPng(boardEl: HTMLElement): Promise<string> {
   const width = boardEl.offsetWidth
   const clone = boardEl.cloneNode(true) as HTMLElement
   clone.classList.add('board--capture')
-  clone.querySelectorAll('.avatar--ghost').forEach((node) => node.remove())
+  clone.querySelectorAll('.avatar-ghost').forEach((node) => node.remove())
   clone.querySelectorAll('.tier--over').forEach((node) => node.classList.remove('tier--over'))
 
   clone.style.position = 'fixed'

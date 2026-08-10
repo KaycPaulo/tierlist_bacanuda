@@ -1,10 +1,9 @@
-import type { RankName } from '@/constants/ranks'
-
-export type { DropTarget, RankName } from '@/constants/ranks'
+export type DropTarget = string | 'pool'
 
 export interface Person {
   id: string
   username: string
+  hostname: string | null
   avatar_url: string | null
 }
 
@@ -17,9 +16,9 @@ export interface Tierlist {
 
 export interface Tier {
   id: number
-  tierlist_id: number
   name: string
   icon: string
+  color: string
   position: number
 }
 
@@ -34,32 +33,30 @@ export interface Character {
 export interface Ranking {
   id: number
   tierlist_id: number
-  user_id: string
-  character_id: number
-  tier_id: number
-  position: number
+  friend_id: string
+  tier_id: number | null
+  position: number | null
 }
 
-/** Item do board: pessoa vinculada a um personagem (imagem vem do personagem). */
+/** Item do board: amigo da tabela rankings (avatar vem de peoples). */
 export interface BoardItem {
-  characterId: number
-  characterName: string
-  imageUrl: string | null
+  rankingId: number
   personId: string
   username: string
-  rank: RankName | null
+  imageUrl: string | null
+  /** Nome da tier; null = ainda não ranqueado (pool). */
+  rank: string | null
+  tierId: number | null
   /** Ordem na fila (pool) ou dentro da tier. */
   order: number
-  rankingId: number | null
 }
 
-export interface FixedTierRow {
-  name: RankName
-  label: string
+export interface BoardTier {
+  id: number
+  name: string
   icon: string
   color: string
   position: number
-  id: number
 }
 
 export interface PeopleCharacterLinkRow {
@@ -68,4 +65,16 @@ export interface PeopleCharacterLinkRow {
   character_id: number
   peoples: Person | Person[] | null
   character: Character | Character[] | null
+}
+
+export type TierlistStatus = 'completed' | 'in_progress'
+
+export interface TierlistSummary {
+  id: number
+  name: string
+  host: Person
+  totalFriends: number
+  rankedCount: number
+  pendingCount: number
+  status: TierlistStatus
 }
