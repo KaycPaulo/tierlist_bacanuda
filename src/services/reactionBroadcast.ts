@@ -2,7 +2,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { ReactionId } from '@/constants/reactions'
 import type { SoundPhraseId } from '@/constants/soundPhrases'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { playReaction, playPhrase } from '@/services/reactionPlayer'
+import { playReaction, playPhrase, stopAllReactionPlays } from '@/services/reactionPlayer'
 
 type ReactionPayload = {
   reaction_id: ReactionId
@@ -71,9 +71,13 @@ class ReactionBroadcastService {
   /**
    * Silencia ou reativa a escuta de reações/frases remotas.
    * O host continua tocando localmente pelo dock.
+   * Ao silenciar, corta áudio e floods em andamento na hora.
    */
   setMuted(muted: boolean) {
     this.muted = muted
+    if (muted) {
+      stopAllReactionPlays()
+    }
     console.log(`[ReactionBroadcast] Escuta ${muted ? 'silenciada' : 'reativada'}`)
   }
 

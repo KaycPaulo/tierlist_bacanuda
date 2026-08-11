@@ -1,6 +1,11 @@
 import { getReaction, type ReactionId } from '@/constants/reactions'
 import { getSoundPhrase, type SoundPhraseId } from '@/constants/soundPhrases'
-import { EMOTE_DURATION_MS, playPhraseSound, playReactionSound } from '@/lib/reactionSounds'
+import {
+  EMOTE_DURATION_MS,
+  playPhraseSound,
+  playReactionSound,
+  stopAllReactionSounds,
+} from '@/lib/reactionSounds'
 
 const SPAM_WINDOW_MS = 4000
 const SPAM_THRESHOLD = 10
@@ -40,9 +45,11 @@ export interface PhrasePlayEvent {
 
 type ReactionListener = (event: ReactionPlayEvent) => void
 type PhraseListener = (event: PhrasePlayEvent) => void
+type StopListener = () => void
 
 const reactionListeners = new Set<ReactionListener>()
 const phraseListeners = new Set<PhraseListener>()
+const stopListeners = new Set<StopListener>()
 const recentTriggers = new Map<ReactionId | SoundPhraseId, number[]>()
 
 function randomBetween(min: number, max: number) {
@@ -73,6 +80,21 @@ export function subscribePhrasePlays(listener: PhraseListener): () => void {
   return () => {
     phraseListeners.delete(listener)
   }
+}
+
+/** Inscreve limpeza imediata de floods/visuais ao silenciar. */
+export function subscribeReactionStop(listener: StopListener): () => void {
+  stopListeners.add(listener)
+  return () => {
+    stopListeners.delete(listener)
+  }
+}
+
+/** Para áudio e avisa a UI para limpar floods em andamento. */
+export function stopAllReactionPlays() {
+  stopAllReactionSounds()
+  recentTriggers.clear()
+  stopListeners.forEach((listener) => listener())
 }
 
 /**

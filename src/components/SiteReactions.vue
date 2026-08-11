@@ -13,6 +13,7 @@ import {
   playReaction,
   subscribeReactionPlays,
   subscribePhrasePlays,
+  subscribeReactionStop,
   type ReactionPlayEvent,
   type PhrasePlayEvent,
 } from '../services/reactionPlayer'
@@ -74,6 +75,7 @@ const timers = new Set<number>()
 let flashTimer: number | null = null
 let unsubscribeReactions: (() => void) | null = null
 let unsubscribePhrases: (() => void) | null = null
+let unsubscribeStop: (() => void) | null = null
 
 const hostName = computed(() => tierlistStore.authorLabel ?? undefined)
 
@@ -247,9 +249,20 @@ function onPhrasePlay(event: PhrasePlayEvent) {
   timers.add(timer)
 }
 
+function clearAllVisuals() {
+  timers.forEach((timer) => window.clearTimeout(timer))
+  timers.clear()
+  flying.value = []
+  flyingPhrases.value = []
+  tomatoStains.value = []
+  fingers.value = []
+  clearFlash()
+}
+
 onMounted(() => {
   unsubscribeReactions = subscribeReactionPlays(onReactionPlay)
   unsubscribePhrases = subscribePhrasePlays(onPhrasePlay)
+  unsubscribeStop = subscribeReactionStop(clearAllVisuals)
 })
 
 onBeforeUnmount(() => {
@@ -257,9 +270,9 @@ onBeforeUnmount(() => {
   unsubscribeReactions = null
   unsubscribePhrases?.()
   unsubscribePhrases = null
-  timers.forEach((timer) => window.clearTimeout(timer))
-  timers.clear()
-  clearFlash()
+  unsubscribeStop?.()
+  unsubscribeStop = null
+  clearAllVisuals()
 })
 </script>
 

@@ -334,6 +334,11 @@ export function preloadReactionSounds() {
   return preloadPromise
 }
 
+let stopActivePhrase: (() => void) | null = null
+let phraseGeneration = 0
+let soundGeneration = 0
+const activeSoundStops = new Set<() => void>()
+
 function playBufferedForEmote(
   buffer: AudioBuffer,
   durationMs: number,
@@ -364,13 +369,37 @@ function playBufferedForEmote(
   source.start(now)
   source.stop(now + playSeconds + 0.02)
 
-  return () => {
+  const stop = () => {
     try {
       source.stop()
     } catch {
       // já parado
     }
+    activeSoundStops.delete(stop)
   }
+
+  activeSoundStops.add(stop)
+  source.onended = () => {
+    activeSoundStops.delete(stop)
+  }
+
+  return stop
+}
+
+/** Interrompe todos os áudios de reação/frase em andamento. */
+export function stopAllReactionSounds() {
+  soundGeneration += 1
+  phraseGeneration += 1
+
+  if (stopActivePhrase) {
+    stopActivePhrase()
+    stopActivePhrase = null
+  }
+
+  for (const stop of [...activeSoundStops]) {
+    stop()
+  }
+  activeSoundStops.clear()
 }
 
 export async function playReactionSound(
@@ -381,7 +410,9 @@ export async function playReactionSound(
   // Sem mapeamento de áudio = silêncio (não toca fallback sintético).
   if (!file) return
 
+  const generation = soundGeneration
   try {
+    if (generation !== soundGeneration) return
     return await playSoundSrc(file.src, {
       durationMs: options?.durationMs,
       playFull: options?.playFull,
@@ -392,6 +423,7 @@ export async function playReactionSound(
     console.warn('[reactionSounds] falha ao tocar MP3, usando fallback', error)
   }
 
+  if (generation !== soundGeneration) return
   const ctx = getContext()
   if (!ctx) return
   PLAYERS[reactionId]?.(ctx)
@@ -407,13 +439,18 @@ export async function playSoundSrc(
     volume?: number
   },
 ) {
+  const generation = soundGeneration
   const ctx = getContext()
   if (ctx?.state === 'suspended') {
     await ctx.resume()
   }
 
   await preloadReactionSounds()
+  if (generation !== soundGeneration) return
+
   const buffer = await loadBuffer(src)
+  if (generation !== soundGeneration) return
+
   const playbackRate = options?.playbackRate ?? 1
   const durationMs = options?.playFull
     ? (buffer.duration * 1000) / playbackRate
@@ -424,9 +461,6 @@ export async function playSoundSrc(
     volume: options?.volume ?? 0.95,
   })
 }
-
-let stopActivePhrase: (() => void) | null = null
-let phraseGeneration = 0
 
 /** Toca frase: no máximo 1 por vez (a nova corta a anterior). */
 export async function playPhraseSound(src: string) {
