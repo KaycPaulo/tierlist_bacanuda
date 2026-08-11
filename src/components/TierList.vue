@@ -26,6 +26,7 @@ const confettiCanvasRef = ref<HTMLCanvasElement | null>(null)
 const capturing = ref(false)
 const captureError = ref<string | null>(null)
 const menuOpen = ref(false)
+const reactionsMuted = ref(false)
 const draggingId = ref<string | null>(null)
 const overTier = ref<DropTarget | null>(null)
 /** null = inserir no fim da fileira. */
@@ -592,6 +593,11 @@ function closeMenu() {
   menuOpen.value = false
 }
 
+function toggleReactionsMute() {
+  reactionsMuted.value = reactionBroadcastService.toggleMuted()
+  closeMenu()
+}
+
 function onDocumentPointerDown(event: PointerEvent) {
   if (!menuOpen.value || !menuRef.value) return
   if (!menuRef.value.contains(event.target as Node)) {
@@ -660,6 +666,7 @@ onBeforeRouteLeave(async () => {
 onMounted(() => {
   document.addEventListener('pointerdown', onDocumentPointerDown)
   reactionBroadcastService.start()
+  reactionsMuted.value = reactionBroadcastService.isMuted()
 })
 
 onBeforeUnmount(() => {
@@ -668,6 +675,7 @@ onBeforeUnmount(() => {
   stopAutoScroll()
   clearDragPreview()
   reactionBroadcastService.stop()
+  reactionsMuted.value = false
   if (confettiTimer) clearTimeout(confettiTimer)
   fireLocalConfetti?.reset()
   fireLocalConfetti = null
@@ -738,6 +746,14 @@ onBeforeUnmount(() => {
             @click="downloadBoardPhoto"
           >
             {{ capturing ? 'Gerando foto...' : 'Baixar foto da tier list' }}
+          </button>
+          <button
+            type="button"
+            class="screen__menu-item"
+            role="menuitem"
+            @click="toggleReactionsMute"
+          >
+            {{ reactionsMuted ? 'Escutar Reações' : 'Silenciar Reações' }}
           </button>
           <button
             type="button"

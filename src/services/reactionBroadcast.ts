@@ -64,16 +64,23 @@ class ReactionBroadcastService {
 
     supabase.removeChannel(this.channel)
     this.channel = null
+    this.muted = false
     console.log('[ReactionBroadcast] Desconectado do canal de reações')
   }
 
   /**
-   * Silencia ou reativa o som das reações.
-   * @param muted - true para silenciar, false para ativar
+   * Silencia ou reativa a escuta de reações/frases remotas.
+   * O host continua tocando localmente pelo dock.
    */
   setMuted(muted: boolean) {
     this.muted = muted
-    console.log(`[ReactionBroadcast] Som ${muted ? 'silenciado' : 'ativado'}`)
+    console.log(`[ReactionBroadcast] Escuta ${muted ? 'silenciada' : 'reativada'}`)
+  }
+
+  /** Alterna o mute e retorna o novo estado. */
+  toggleMuted(): boolean {
+    this.setMuted(!this.muted)
+    return this.muted
   }
 
   /**
